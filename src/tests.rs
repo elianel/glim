@@ -41,7 +41,7 @@ mod tests {
         assert!(uvs.len() == vertices.len());
         assert!(normals.len() == vertices.len());
 
-        let mesh = StilbMesh {
+        let mesh = RawMesh {
             vertices: vertices.as_ptr(),
             normals: normals.as_ptr(),
             uvs: uvs.as_ptr(),

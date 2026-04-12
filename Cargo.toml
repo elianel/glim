@@ -10,3 +10,4 @@ crate-type = ["cdylib", "rlib"]
 glfw = { version = "0.59", default-features = false, features = ["vulkan", "raw-window-handle-v0-6"] }
 ash = "0.38"
 ash-window = "0.13"
+tinybvh-rs = "0.1.0-beta.3"
