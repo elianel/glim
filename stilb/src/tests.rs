@@ -1,11 +1,14 @@
 #[cfg(test)]
 mod tests {
+    use shaders::TEST_COMPUTE;
+
     use crate::{math::*, *};
 
     #[test]
     fn test_initialize() {
         let preview = true;
 
+        println!("Loaded shader bytes: {} bytes", TEST_COMPUTE.len());
         let config = StilbConfig {
             is_preview: if preview { 1 } else { 0 },
             preview_width: 512,
