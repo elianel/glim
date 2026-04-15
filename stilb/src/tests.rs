@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use crate::{math::*, *};
 
     #[test]
     fn test_initialize() {
@@ -44,8 +44,8 @@ mod tests {
             vertices: vertices.as_ptr(),
             normals: normals.as_ptr(),
             uvs: uvs.as_ptr(),
-            vertices_length: vertices.len() as u32,
             indices: indices.as_ptr(),
+            vertices_length: vertices.len() as u32,
             indices_length: indices.len() as u32,
         };
 

@@ -1,14 +1,10 @@
 use ash::{
     Device, Entry, Instance, khr,
-    vk::{
-        self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, PhysicalDevice,
-        SurfaceKHR,
-    },
+    vk::{self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, Handle},
 };
 use std::{
     collections::HashSet,
     ffi::{CStr, c_char},
-    ptr,
 };
 
 pub struct VulkanConfig {
@@ -30,10 +26,10 @@ pub struct VulkanContext {
     pub entry: Entry,
 
     pub instance: Instance,
-    pub physical_device: PhysicalDevice,
+    pub physical_device: vk::PhysicalDevice,
     pub device: Device,
 
-    pub surface_instance: Option<khr::surface::Instance>,
+    pub surface_instance: khr::surface::Instance,
     pub surface: vk::SurfaceKHR,
 
     pub queue_family_indices: QueueFamilyIndices,
@@ -50,7 +46,7 @@ pub struct VulkanContext {
 impl VulkanContext {
     pub fn new(
         config: &VulkanConfig,
-        create_surface_callback: impl Fn(&Instance) -> SurfaceKHR,
+        create_surface_callback: impl Fn(&Instance) -> vk::SurfaceKHR,
     ) -> Self {
         let entry = ash::Entry::linked();
 
@@ -106,15 +102,13 @@ impl VulkanContext {
 
         let instance = unsafe { entry.create_instance(&create_info, None).unwrap() };
 
-        let surface;
-        let surface_instance;
-        if config.enable_window {
-            surface_instance = Some(khr::surface::Instance::new(&entry, &instance));
-            surface = create_surface_callback(&instance);
+        let surface_instance = khr::surface::Instance::new(&entry, &instance);
+
+        let surface = if config.enable_window {
+            create_surface_callback(&instance)
         } else {
-            surface = SurfaceKHR::null();
-            surface_instance = None;
-        }
+            vk::SurfaceKHR::null()
+        };
 
         let physical_devices = unsafe { instance.enumerate_physical_devices().unwrap() };
         for physical_device in &physical_devices {
@@ -311,7 +305,10 @@ pub extern "system" fn vulkan_debug_callback(
     vk::FALSE
 }
 
-fn find_queue_families(instance: &Instance, physical_device: PhysicalDevice) -> QueueFamilyIndices {
+fn find_queue_families(
+    instance: &Instance,
+    physical_device: vk::PhysicalDevice,
+) -> QueueFamilyIndices {
     let mut graphics = None;
     let mut compute = None;
     let mut present = None;
@@ -358,9 +355,9 @@ impl Drop for VulkanContext {
             device.destroy_command_pool(self.graphics_command_pool, None);
             device.destroy_command_pool(self.compute_command_pool, None);
 
-            if let Some(surface_instance) = &self.surface_instance {
-                surface_instance.destroy_surface(self.surface, None);
-            };
+            if !self.surface.is_null() {
+                self.surface_instance.destroy_surface(self.surface, None);
+            }
 
             device.destroy_device(None);
 

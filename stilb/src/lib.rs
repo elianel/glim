@@ -1,30 +1,25 @@
-use core::slice;
-use std::{
-    ffi::{CStr, c_int},
-    ptr,
-};
+use std::ptr;
 
-use ash::{
-    Instance,
-    vk::{self, Handle},
-};
+use ash::vk::Handle;
+
 use glfw_sys::{
-    GLFW_CLIENT_API, GLFW_KEY_ESCAPE, GLFW_NO_API, GLFW_PRESS, GLFW_RESIZABLE, GLFW_TRUE,
-    GLFWwindow, glfwCreateWindow, glfwCreateWindowSurface, glfwGetKey,
-    glfwGetRequiredInstanceExtensions, glfwInit, glfwPollEvents, glfwSetWindowShouldClose,
-    glfwWindowHint, glfwWindowShouldClose,
+    GLFW_KEY_ESCAPE, GLFW_PRESS, GLFWwindow, glfwCreateWindowSurface, glfwGetKey,
+    glfwGetRequiredInstanceExtensions, glfwPollEvents, glfwSetWindowShouldClose,
+    glfwWindowShouldClose,
 };
 
 use crate::{
-    math::{Vector2, Vector3},
+    mesh::{Mesh, RawMesh},
     vulkan_core::{VulkanConfig, VulkanContext},
+    window::create_window,
 };
 
-// mod bvh;
 mod math;
+mod mesh;
 mod tests;
 mod vulkan_cmd;
 mod vulkan_core;
+mod window;
 
 pub struct Stilb {
     pub vk: VulkanContext,
@@ -37,98 +32,6 @@ pub struct StilbConfig {
     is_preview: u8,
     preview_width: u32,
     preview_height: u32,
-}
-
-#[repr(C)]
-pub struct RawMesh {
-    vertices: *const Vector3,
-    normals: *const Vector3,
-    uvs: *const Vector2,
-    indices: *const u32,
-    vertices_length: u32,
-    indices_length: u32,
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct Vertex {
-    position: Vector3,
-    normal: Vector3,
-    uv: Vector2,
-}
-
-#[derive(Debug)]
-pub struct Mesh {
-    vertices: Vec<Vertex>,
-    triangles: Vec<u32>,
-}
-
-impl Mesh {
-    // pub fn pack_normal_octahedron(n: Vector3) -> Vector2 {
-    //     let l1_norm = n.x.abs() + n.y.abs() + n.z.abs();
-    //     let mut x = n.x / l1_norm;
-    //     let mut y = n.y / l1_norm;
-
-    //     if n.z < 0.0 {
-    //         let old_x = x;
-    //         let old_y = y;
-    //         x = (1.0 - old_y.abs()) * if old_x >= 0.0 { 1.0 } else { -1.0 };
-    //         y = (1.0 - old_x.abs()) * if old_y >= 0.0 { 1.0 } else { -1.0 };
-    //     }
-
-    //     Vector2::new(x, y)
-    // }
-
-    pub fn from_raw_mesh(raw: RawMesh) -> Self {
-        let vertices = unsafe { slice::from_raw_parts(raw.vertices, raw.vertices_length as usize) };
-        let normals = unsafe { slice::from_raw_parts(raw.normals, raw.vertices_length as usize) };
-        let uvs = unsafe { slice::from_raw_parts(raw.uvs, raw.vertices_length as usize) };
-        let indices = unsafe { slice::from_raw_parts(raw.indices, raw.indices_length as usize) };
-
-        let mut vertices_copy = Vec::with_capacity(vertices.len());
-        let mut triangles_copy = Vec::with_capacity(indices.len());
-
-        for i in 0..vertices.len() {
-            // let normal = Mesh::pack_normal_octahedron(normals[i]);
-
-            let vertex = Vertex {
-                position: vertices[i],
-                normal: normals[i],
-                uv: uvs[i],
-            };
-
-            vertices_copy.push(vertex);
-        }
-
-        triangles_copy.extend(indices);
-
-        Self {
-            vertices: vertices_copy,
-            triangles: triangles_copy,
-        }
-    }
-}
-
-fn create_window(width: u32, height: u32) -> *mut GLFWwindow {
-    const TITLE: &CStr = c"Stilb Preview";
-    let width = width as c_int;
-    let height = height as c_int;
-
-    unsafe {
-        glfwInit();
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
-        let window = glfwCreateWindow(
-            width,
-            height,
-            TITLE.as_ptr(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        return window;
-    }
 }
 
 #[unsafe(no_mangle)]
