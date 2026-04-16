@@ -118,7 +118,7 @@ impl Texture2D {
     }
 
     // only 4 channel f32 textures
-    pub fn set_pixels(&self, vk: &VulkanContext, pixels: &[f32]) {
+    pub fn set_pixels(&mut self, vk: &VulkanContext, pixels: &[f32]) {
         assert!(pixels.len() as u32 == self.width * self.height * 4);
 
         let size = self.get_device_size();
@@ -209,6 +209,8 @@ impl Texture2D {
             subresource_range,
             ..Default::default()
         };
+
+        self.layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
 
         unsafe {
             vk.device.cmd_pipeline_barrier(
