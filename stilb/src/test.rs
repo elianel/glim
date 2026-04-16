@@ -3,7 +3,7 @@ mod tests {
     use ash::vk;
     use shaders::TEST_COMPUTE;
 
-    use crate::{math::*, texture2d::Texture2D, *};
+    use crate::{bmp::save_bmp, math::*, texture2d::Texture2D, *};
 
     #[test]
     fn test_initialize() {
@@ -75,11 +75,13 @@ mod tests {
 
         #[rustfmt::skip]
         let pixels: [f32; 16] = [
-            0.0, 0.0, 0.0, 0.0,
-            1.0, 1.0, 1.0, 1.0,
-            0.0, 0.0, 0.0, 0.0,
-            1.0, 1.0, 1.0, 1.0,
+            1.0, 0.0, 0.0, 1.0,
+            0.0, 1.0, 0.0, 1.0,
+            0.0, 0.0, 1.0, 1.0,
+            0.0, 0.0, 0.0, 1.0,
         ];
+
+        save_bmp("test.bmp", 2, 2, &pixels).unwrap();
 
         texture.set_pixels(vk, &pixels);
 

@@ -10,6 +10,7 @@ use crate::{
     window::initialize_window,
 };
 
+mod bmp;
 mod math;
 mod mesh;
 mod test;
