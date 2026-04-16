@@ -194,7 +194,7 @@ impl Texture2D {
 
         let barrier = vk::ImageMemoryBarrier {
             src_access_mask: vk::AccessFlags::TRANSFER_WRITE,
-            dst_access_mask: vk::AccessFlags::TRANSFER_READ,
+            dst_access_mask: vk::AccessFlags::SHADER_READ,
             old_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             new_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             image: self.image,

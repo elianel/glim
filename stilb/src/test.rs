@@ -67,7 +67,10 @@ mod tests {
             2,
             2,
             vk::Format::R32G32B32A32_SFLOAT,
-            vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC,
+            vk::ImageUsageFlags::STORAGE
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::SAMPLED,
         );
 
         #[rustfmt::skip]
