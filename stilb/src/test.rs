@@ -103,16 +103,9 @@ mod tests {
             ..Default::default()
         });
 
-        let push_constant_ranges = vk::PushConstantRange::default();
         let specialization_info = vk::SpecializationInfo::default();
 
-        let mut shader = Shader::new(
-            vk,
-            get_test_shader(),
-            &bindings,
-            &[push_constant_ranges],
-            &specialization_info,
-        );
+        let mut shader = Shader::new(vk, get_test_shader(), &bindings, &[], &specialization_info);
 
         shader.destroy(vk);
 

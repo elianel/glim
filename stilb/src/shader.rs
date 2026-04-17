@@ -71,16 +71,21 @@ impl Shader {
         assert!(!self.module.is_null());
         assert!(!self.pipeline.is_null());
         assert!(!self.pipeline_layout.is_null());
+        assert!(!self.set_layout.is_null());
 
         unsafe {
             vk.device.destroy_shader_module(self.module, None);
             vk.device.destroy_pipeline(self.pipeline, None);
             vk.device
                 .destroy_pipeline_layout(self.pipeline_layout, None);
+
+            vk.device
+                .destroy_descriptor_set_layout(self.set_layout, None);
         };
 
         self.module = vk::ShaderModule::null();
         self.pipeline = vk::Pipeline::null();
         self.pipeline_layout = vk::PipelineLayout::null();
+        self.set_layout = vk::DescriptorSetLayout::null();
     }
 }
