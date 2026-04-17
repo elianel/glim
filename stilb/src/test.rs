@@ -1,15 +1,14 @@
 #[cfg(test)]
 mod tests {
     use ash::vk;
-    use shaders::TEST_COMPUTE;
+    use shaders::get_test_shader;
 
-    use crate::{bmp::save_bmp, math::*, mesh::GpuMesh, texture2d::Texture2D, *};
+    use crate::{bmp::save_bmp, math::*, mesh::GpuMesh, shader::Shader, texture2d::Texture2D, *};
 
     #[test]
     fn test_initialize() {
         let preview = true;
 
-        println!("Loaded shader bytes: {} bytes", TEST_COMPUTE.len());
         let config = StilbConfig {
             is_preview: if preview { 1 } else { 0 },
             preview_width: 512,
@@ -44,7 +43,7 @@ mod tests {
         assert!(uvs.len() == vertices.len());
         assert!(normals.len() == vertices.len());
 
-        let mesh = RawMesh {
+        let mesh = FfiMesh {
             vertices: vertices.as_ptr(),
             normals: normals.as_ptr(),
             uvs: uvs.as_ptr(),
@@ -93,6 +92,27 @@ mod tests {
         let mut gpu_mesh = GpuMesh::new(vk, mesh);
 
         gpu_mesh.destroy(vk);
+
+        let mut bindings = Vec::new();
+
+        bindings.push(vk::DescriptorSetLayoutBinding {
+            binding: 0,
+            descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+            descriptor_count: 1,
+            stage_flags: vk::ShaderStageFlags::COMPUTE,
+            ..Default::default()
+        });
+
+        let push_constant_ranges = vk::PushConstantRange::default();
+        let specialization_info = vk::SpecializationInfo::default();
+
+        let shader = Shader::new(
+            vk,
+            get_test_shader(),
+            &bindings,
+            &[push_constant_ranges],
+            &specialization_info,
+        );
 
         deinitialize(stilb);
     }

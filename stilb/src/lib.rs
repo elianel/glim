@@ -5,7 +5,7 @@ use ash::vk::Handle;
 use glfw_sys::{GLFWwindow, glfwCreateWindowSurface};
 
 use crate::{
-    mesh::{Mesh, RawMesh},
+    mesh::{FfiMesh, Mesh},
     vulkan_core::{VulkanConfig, VulkanContext},
     window::initialize_window,
 };
@@ -13,6 +13,7 @@ use crate::{
 mod bmp;
 mod math;
 mod mesh;
+mod shader;
 mod test;
 mod texture2d;
 mod vulkan_cmd;
@@ -75,11 +76,11 @@ pub extern "C" fn deinitialize(stilb: *mut Stilb) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn add_mesh(stilb: *mut Stilb, raw: RawMesh) {
+pub extern "C" fn add_mesh(stilb: *mut Stilb, raw: FfiMesh) {
     unsafe {
         let stilb_obj = &mut *stilb;
 
-        let mesh = Mesh::from_raw_mesh(raw);
+        let mesh = Mesh::from_ffi_mesh(raw);
 
         // println!("Added mesh: {:#?}", mesh);
 

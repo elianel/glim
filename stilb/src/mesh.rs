@@ -4,7 +4,7 @@ use crate::{math::*, vulkan_core::VulkanContext};
 use core::slice;
 
 #[repr(C)]
-pub struct RawMesh {
+pub struct FfiMesh {
     pub vertices: *const Vector3,
     pub normals: *const Vector3,
     pub uvs: *const Vector2,
@@ -28,18 +28,18 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn from_raw_mesh(raw: RawMesh) -> Self {
-        let vertices = unsafe { slice::from_raw_parts(raw.vertices, raw.vertices_length as usize) };
-        let normals = unsafe { slice::from_raw_parts(raw.normals, raw.vertices_length as usize) };
-        let uvs = unsafe { slice::from_raw_parts(raw.uvs, raw.vertices_length as usize) };
-        let indices = unsafe { slice::from_raw_parts(raw.indices, raw.indices_length as usize) };
+    pub fn from_ffi_mesh(mesh: FfiMesh) -> Self {
+        let verts = unsafe { slice::from_raw_parts(mesh.vertices, mesh.vertices_length as usize) };
+        let normals = unsafe { slice::from_raw_parts(mesh.normals, mesh.vertices_length as usize) };
+        let uvs = unsafe { slice::from_raw_parts(mesh.uvs, mesh.vertices_length as usize) };
+        let indices = unsafe { slice::from_raw_parts(mesh.indices, mesh.indices_length as usize) };
 
-        let mut vertices_copy = Vec::with_capacity(vertices.len());
+        let mut vertices_copy = Vec::with_capacity(verts.len());
         let mut triangles_copy = Vec::with_capacity(indices.len());
 
-        for i in 0..vertices.len() {
+        for i in 0..verts.len() {
             let vertex = Vertex {
-                position: vertices[i],
+                position: verts[i],
                 normal: normals[i],
                 uv: uvs[i],
             };
@@ -63,7 +63,7 @@ pub struct VulkanBlas {
     address: vk::DeviceAddress,
 }
 
-pub enum BvhType {
+pub enum AccelerationStructureType {
     RayQuery(VulkanBlas),
     CwBvh,
 }
@@ -77,7 +77,7 @@ pub struct GpuMesh {
     index_memory: vk::DeviceMemory,
     index_address: vk::DeviceAddress,
 
-    bvh: BvhType,
+    acceleration_structure: AccelerationStructureType,
 }
 
 impl GpuMesh {
@@ -123,14 +123,14 @@ impl GpuMesh {
         vk.upload_buffer(bytes, index_buffer);
 
         let bvh = if vk.as_device.is_some() {
-            BvhType::RayQuery(GpuMesh::create_vulkan_blas(
+            AccelerationStructureType::RayQuery(GpuMesh::create_vulkan_blas(
                 vk,
                 mesh,
                 vertex_address,
                 index_address,
             ))
         } else {
-            BvhType::CwBvh // todo
+            AccelerationStructureType::CwBvh // todo
         };
 
         Self {
@@ -140,7 +140,7 @@ impl GpuMesh {
             index_memory,
             vertex_address,
             index_address,
-            bvh,
+            acceleration_structure: bvh,
         }
     }
 
@@ -279,8 +279,8 @@ impl GpuMesh {
     }
 
     pub fn destroy(&mut self, vk: &VulkanContext) {
-        match &mut self.bvh {
-            BvhType::RayQuery(vulkan_blas) => {
+        match &mut self.acceleration_structure {
+            AccelerationStructureType::RayQuery(vulkan_blas) => {
                 assert!(!vulkan_blas.blas.is_null());
                 assert!(!vulkan_blas.memory.is_null());
                 assert!(!vulkan_blas.buffer.is_null());
@@ -297,7 +297,7 @@ impl GpuMesh {
 
                 vulkan_blas.address = 0;
             }
-            BvhType::CwBvh => todo!(),
+            AccelerationStructureType::CwBvh => todo!(),
         }
 
         assert!(!self.vertex_buffer.is_null());
