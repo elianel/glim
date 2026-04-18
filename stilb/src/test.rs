@@ -5,18 +5,17 @@ mod tests {
 
     use crate::{bmp::save_bmp, math::*, mesh::GpuMesh, shader::Shader, texture2d::Texture2D, *};
 
-    #[test]
-    fn test_initialize() {
+    fn get_test_config() -> StilbConfig {
         let preview = true;
 
-        let config = StilbConfig {
+        StilbConfig {
             is_preview: if preview { 1 } else { 0 },
             preview_width: 512,
             preview_height: 512,
-        };
+        }
+    }
 
-        let stilb = initialize(config);
-
+    fn get_test_mesh() -> Mesh {
         let vertices = vec![
             Vector3::new(-0.5, 0.0, -0.5),
             Vector3::new(0.5, 0.0, -0.5),
@@ -52,14 +51,19 @@ mod tests {
             indices_length: indices.len() as u32,
         };
 
-        add_mesh(stilb, mesh);
+        Mesh::from_ffi_mesh(mesh)
+    }
 
-        let stilb_obj = unsafe { &*stilb };
+    #[test]
+    fn test_initialize() {
+        let config = get_test_config();
+
+        let stilb = initialize(config);
+
+        let stilb_obj = unsafe { &mut *stilb };
         let vk = &stilb_obj.vk;
 
-        let cmd = vk.begin_temp_graphics_cmd();
-
-        vk.end_temp_graphics_cmd(cmd);
+        stilb_obj.meshes.push(get_test_mesh());
 
         let mut texture = Texture2D::new(
             vk,
@@ -203,6 +207,8 @@ mod tests {
         gpu_mesh.destroy(vk);
         texture.destroy(vk);
         shader.destroy(vk);
+
+        let swapchain = vk.create_swapchain(512, 512);
 
         deinitialize(stilb);
     }

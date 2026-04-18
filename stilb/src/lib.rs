@@ -18,6 +18,7 @@ mod test;
 mod texture2d;
 mod vulkan_cmd;
 mod vulkan_core;
+mod vulkan_swapchain;
 mod window;
 
 pub struct Stilb {
