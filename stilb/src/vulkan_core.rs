@@ -9,6 +9,8 @@ use std::{
     ptr,
 };
 
+use crate::vulkan_swapchain::SwapchainData;
+
 pub struct VulkanConfig {
     pub enable_validation_layers: bool,
     pub enable_window: bool,
@@ -33,6 +35,7 @@ pub struct VulkanContext {
 
     pub surface_instance: khr::surface::Instance,
     pub surface: vk::SurfaceKHR,
+    pub swapchain_device: khr::swapchain::Device,
 
     pub queue_family_indices: QueueFamilyIndices,
     pub graphics_queue: vk::Queue,
@@ -45,6 +48,8 @@ pub struct VulkanContext {
     pub descriptor_pool: vk::DescriptorPool,
 
     pub compute_cmd: vk::CommandBuffer,
+
+    pub swapchain: SwapchainData,
 
     pub as_device: Option<khr::acceleration_structure::Device>,
 }
@@ -284,6 +289,8 @@ impl VulkanContext {
             None
         };
 
+        let swapchain_device = khr::swapchain::Device::new(&instance, &device);
+
         let allocate_info = vk::CommandBufferAllocateInfo {
             command_pool: compute_command_pool,
             level: vk::CommandBufferLevel::PRIMARY,
@@ -292,6 +299,11 @@ impl VulkanContext {
         };
 
         let compute_cmd = unsafe { device.allocate_command_buffers(&allocate_info) }.unwrap()[0];
+
+        let swapchain = SwapchainData {
+            image_views: Vec::new(),
+            swapchain: vk::SwapchainKHR::null(),
+        };
 
         Self {
             entry,
@@ -309,6 +321,8 @@ impl VulkanContext {
             surface_instance,
             as_device,
             compute_cmd,
+            swapchain_device,
+            swapchain,
         }
     }
 
@@ -471,12 +485,14 @@ fn find_queue_families(
 impl Drop for VulkanContext {
     fn drop(&mut self) {
         unsafe {
-            let device = &self.device;
-            let instance = &self.instance;
-
-            device
+            self.device
                 .device_wait_idle()
                 .expect("Failed to wait for device idle");
+
+            self.destroy_swapchain();
+
+            let device = &self.device;
+            let instance = &self.instance;
 
             device.destroy_descriptor_pool(self.descriptor_pool, None);
 

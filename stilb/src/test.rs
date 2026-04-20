@@ -61,7 +61,7 @@ mod tests {
         let stilb = initialize(config);
 
         let stilb_obj = unsafe { &mut *stilb };
-        let vk = &stilb_obj.vk;
+        let vk = &mut stilb_obj.vk;
 
         stilb_obj.meshes.push(get_test_mesh());
 
@@ -208,7 +208,7 @@ mod tests {
         texture.destroy(vk);
         shader.destroy(vk);
 
-        let swapchain = vk.create_swapchain(512, 512);
+        vk.create_swapchain(512, 512);
 
         deinitialize(stilb);
     }

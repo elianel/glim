@@ -1,8 +1,11 @@
-use ash::vk;
+use ash::vk::{self, Handle};
 
 use crate::vulkan_core::VulkanContext;
 
-pub struct SwapchainData {}
+pub struct SwapchainData {
+    pub image_views: Vec<vk::ImageView>,
+    pub swapchain: vk::SwapchainKHR,
+}
 
 fn query_swapchain_support(
     vk: &VulkanContext,
@@ -33,7 +36,9 @@ fn query_swapchain_support(
 }
 
 impl VulkanContext {
-    pub fn create_swapchain(&self, width: u32, height: u32) -> SwapchainData {
+    pub fn create_swapchain(&mut self, width: u32, height: u32) {
+        self.destroy_swapchain();
+
         let (capabilities, formats, present_modes) = query_swapchain_support(self);
 
         let mut selected_format = formats[0];
@@ -76,6 +81,88 @@ impl VulkanContext {
             image_count, extent, selected_format, selected_present_mode
         );
 
-        SwapchainData {}
+        let mut create_info = vk::SwapchainCreateInfoKHR {
+            surface: self.surface,
+            min_image_count: image_count,
+            image_format: selected_format.format,
+            image_color_space: selected_format.color_space,
+            image_extent: extent,
+            image_array_layers: 1,
+            image_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_DST,
+            pre_transform: capabilities.current_transform,
+            composite_alpha: vk::CompositeAlphaFlagsKHR::OPAQUE,
+            present_mode: selected_present_mode,
+            clipped: vk::TRUE,
+            old_swapchain: vk::SwapchainKHR::null(), // todo set old swapchain
+            ..Default::default()
+        };
+
+        let queue_family_indices = [
+            self.queue_family_indices.graphics,
+            self.queue_family_indices.present,
+        ];
+
+        if self.queue_family_indices.graphics != self.queue_family_indices.present {
+            create_info.image_sharing_mode = vk::SharingMode::CONCURRENT;
+            create_info = create_info.queue_family_indices(&queue_family_indices);
+        } else {
+            create_info.image_sharing_mode = vk::SharingMode::EXCLUSIVE;
+        }
+
+        let swapchain = unsafe {
+            self.swapchain_device
+                .create_swapchain(&create_info, None)
+                .unwrap()
+        };
+
+        let swapchain_images = unsafe {
+            self.swapchain_device
+                .get_swapchain_images(swapchain)
+                .unwrap()
+        };
+
+        let mut image_views = Vec::with_capacity(swapchain_images.len());
+
+        for image in swapchain_images {
+            let subresource_range = vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            };
+
+            let create_info = vk::ImageViewCreateInfo {
+                image: image,
+                view_type: vk::ImageViewType::TYPE_2D,
+                format: selected_format.format,
+                subresource_range,
+                ..Default::default()
+            };
+
+            let image_view = unsafe { self.device.create_image_view(&create_info, None).unwrap() };
+            image_views.push(image_view);
+        }
+
+        self.swapchain = SwapchainData {
+            image_views,
+            swapchain,
+        };
+    }
+
+    pub fn destroy_swapchain(&mut self) {
+        for image_view in &self.swapchain.image_views {
+            unsafe { self.device.destroy_image_view(*image_view, None) };
+        }
+
+        self.swapchain.image_views.clear();
+
+        let swapchain = self.swapchain.swapchain;
+
+        if !swapchain.is_null() {
+            unsafe { self.swapchain_device.destroy_swapchain(swapchain, None) };
+        }
+
+        self.swapchain.swapchain = vk::SwapchainKHR::null();
     }
 }
