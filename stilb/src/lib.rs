@@ -11,9 +11,10 @@ use crate::{
 };
 
 mod bmp;
+mod compute_shader;
+mod graphics_shader;
 mod math;
 mod mesh;
-mod shader;
 mod test;
 mod texture2d;
 mod vulkan_cmd;

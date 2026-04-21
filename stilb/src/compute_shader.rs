@@ -5,7 +5,7 @@ use shaders::get_test_shader;
 
 use crate::vulkan_core::VulkanContext;
 
-pub struct Shader {
+pub struct ComputeShader {
     module: vk::ShaderModule,
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
@@ -13,7 +13,7 @@ pub struct Shader {
     set_layout: vk::DescriptorSetLayout,
 }
 
-impl Shader {
+impl ComputeShader {
     pub fn new(
         vk: &VulkanContext,
         code: &[u32],
@@ -104,7 +104,7 @@ impl Shader {
     }
 }
 
-pub fn load_shader_test(vk: &VulkanContext) -> Shader {
+pub fn load_shader_test(vk: &VulkanContext) -> ComputeShader {
     let mut bindings = Vec::new();
 
     bindings.push(vk::DescriptorSetLayoutBinding {
@@ -117,10 +117,10 @@ pub fn load_shader_test(vk: &VulkanContext) -> Shader {
 
     let specialization_info = vk::SpecializationInfo::default();
 
-    Shader::new(vk, get_test_shader(), &bindings, &[], &specialization_info)
+    ComputeShader::new(vk, get_test_shader(), &bindings, &[], &specialization_info)
 }
 
-pub fn update_test_shader(vk: &VulkanContext, shader: &Shader, binding0: vk::ImageView) {
+pub fn update_test_shader(vk: &VulkanContext, shader: &ComputeShader, binding0: vk::ImageView) {
     let image_info = [vk::DescriptorImageInfo {
         image_view: binding0,
         image_layout: vk::ImageLayout::GENERAL,

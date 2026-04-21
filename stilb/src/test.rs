@@ -1,12 +1,17 @@
 #[cfg(test)]
 mod tests {
     use ash::vk;
+    use shaders::{
+        get_visibility_fragment_shader, get_visibility_geometry_shader,
+        get_visibility_vertex_shader,
+    };
 
     use crate::{
         bmp::save_bmp,
+        compute_shader::{load_shader_test, update_test_shader},
+        graphics_shader::GraphicsShader,
         math::*,
         mesh::GpuMesh,
-        shader::{load_shader_test, update_test_shader},
         texture2d::Texture2D,
         *,
     };
@@ -173,6 +178,59 @@ mod tests {
         test_shader.destroy(vk);
 
         run(stilb);
+
+        deinitialize(stilb);
+    }
+
+    #[test]
+    fn test_visibility_rasterize() {
+        let config = get_test_config();
+        let stilb = initialize(config);
+
+        let stilb_obj = unsafe { &mut *stilb };
+        let vk = &mut stilb_obj.vk;
+
+        stilb_obj.meshes.push(get_test_mesh());
+        let mesh = &stilb_obj.meshes[0];
+
+        let mut visibility = Texture2D::new(
+            vk,
+            512,
+            512,
+            vk::Format::R32G32B32A32_SFLOAT,
+            vk::ImageUsageFlags::STORAGE
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::SAMPLED,
+        );
+
+        let mut gpu_mesh = GpuMesh::new(vk, mesh);
+
+        let shader = GraphicsShader::new(
+            vk,
+            Some(get_visibility_vertex_shader()),
+            Some(get_visibility_fragment_shader()),
+            Some(get_visibility_geometry_shader()),
+            &[],
+            &[],
+            &vk::SpecializationInfo::default(),
+            &visibility,
+        );
+
+        let cmd = vk.begin_single_use_cmd();
+        vk.end_single_use_cmd(cmd);
+
+        let pixels_read = visibility.read_pixels(vk);
+        save_bmp(
+            "../temp/visibility.bmp",
+            visibility.width(),
+            visibility.height(),
+            &pixels_read,
+        )
+        .unwrap();
+
+        visibility.destroy(vk);
+        gpu_mesh.destroy(vk);
 
         deinitialize(stilb);
     }
