@@ -11,7 +11,7 @@ mod tests {
         compute_shader::{load_shader_test, update_test_shader},
         graphics_shader::GraphicsShader,
         math::*,
-        mesh::GpuMesh,
+        mesh::{GpuMesh, Vertex},
         texture2d::Texture2D,
         *,
     };
@@ -201,18 +201,33 @@ mod tests {
             vk::ImageUsageFlags::STORAGE
                 | vk::ImageUsageFlags::TRANSFER_SRC
                 | vk::ImageUsageFlags::TRANSFER_DST
-                | vk::ImageUsageFlags::SAMPLED,
+                | vk::ImageUsageFlags::SAMPLED
+                | vk::ImageUsageFlags::COLOR_ATTACHMENT,
         );
 
         let mut gpu_mesh = GpuMesh::new(vk, mesh);
 
-        let shader = GraphicsShader::new(
+        #[repr(C)]
+        struct PushConstants {
+            vertices: *const Vertex,
+            indices: *const u32,
+            width: u32,
+            height: u32,
+        }
+
+        let push_constant_ranges = [vk::PushConstantRange {
+            stage_flags: vk::ShaderStageFlags::GEOMETRY,
+            offset: 0,
+            size: std::mem::size_of::<PushConstants>() as u32,
+        }];
+
+        let mut shader = GraphicsShader::new(
             vk,
             Some(get_visibility_vertex_shader()),
             Some(get_visibility_fragment_shader()),
             Some(get_visibility_geometry_shader()),
             &[],
-            &[],
+            &push_constant_ranges,
             &vk::SpecializationInfo::default(),
             &visibility,
         );
@@ -229,6 +244,7 @@ mod tests {
         )
         .unwrap();
 
+        shader.destroy(vk);
         visibility.destroy(vk);
         gpu_mesh.destroy(vk);
 

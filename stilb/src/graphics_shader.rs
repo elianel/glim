@@ -239,25 +239,41 @@ impl GraphicsShader {
         }
     }
 
-    // pub fn destroy(&mut self, vk: &VulkanContext) {
-    //     assert!(!self.module.is_null());
-    //     assert!(!self.pipeline.is_null());
-    //     assert!(!self.pipeline_layout.is_null());
-    //     assert!(!self.set_layout.is_null());
+    pub fn destroy(&mut self, vk: &VulkanContext) {
+        assert!(!self.pipeline.is_null());
+        assert!(!self.pipeline_layout.is_null());
+        assert!(!self.render_pass.is_null());
+        assert!(!self.framebuffer.is_null());
 
-    //     unsafe {
-    //         vk.device.destroy_shader_module(self.module, None);
-    //         vk.device.destroy_pipeline(self.pipeline, None);
-    //         vk.device
-    //             .destroy_pipeline_layout(self.pipeline_layout, None);
+        unsafe {
+            if !self.vertex_module.is_null() {
+                vk.device.destroy_shader_module(self.vertex_module, None);
+            }
+            if !self.fragment_module.is_null() {
+                vk.device.destroy_shader_module(self.fragment_module, None);
+            }
+            if !self.geometry_module.is_null() {
+                vk.device.destroy_shader_module(self.geometry_module, None);
+            }
+            vk.device.destroy_pipeline(self.pipeline, None);
+            vk.device.destroy_framebuffer(self.framebuffer, None);
+            vk.device.destroy_render_pass(self.render_pass, None);
+            vk.device
+                .destroy_pipeline_layout(self.pipeline_layout, None);
 
-    //         vk.device
-    //             .destroy_descriptor_set_layout(self.set_layout, None);
-    //     };
+            if !self.set_layout.is_null() {
+                vk.device
+                    .destroy_descriptor_set_layout(self.set_layout, None);
+            }
+        };
 
-    //     self.module = vk::ShaderModule::null();
-    //     self.pipeline = vk::Pipeline::null();
-    //     self.pipeline_layout = vk::PipelineLayout::null();
-    //     self.set_layout = vk::DescriptorSetLayout::null();
-    // }
+        self.fragment_module = vk::ShaderModule::null();
+        self.vertex_module = vk::ShaderModule::null();
+        self.geometry_module = vk::ShaderModule::null();
+        self.pipeline = vk::Pipeline::null();
+        self.pipeline_layout = vk::PipelineLayout::null();
+        self.set_layout = vk::DescriptorSetLayout::null();
+        self.framebuffer = vk::Framebuffer::null();
+        self.render_pass = vk::RenderPass::null();
+    }
 }

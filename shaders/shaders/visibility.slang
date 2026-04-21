@@ -12,10 +12,9 @@ struct Vertex
 struct PushConstants
 {
     Vertex *vertices;
+    uint *indices;
     uint width;
     uint height;
-    uint *indices;
-    float padding0;
 };
 
 struct Varyings
