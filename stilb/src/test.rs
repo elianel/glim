@@ -213,6 +213,8 @@ mod tests {
             indices: *const u32,
             width: u32,
             height: u32,
+            padding0: f32,
+            padding1: f32,
         }
 
         let push_constant_ranges = [vk::PushConstantRange {
@@ -233,6 +235,62 @@ mod tests {
         );
 
         let cmd = vk.begin_single_use_cmd();
+
+        let clear_values = [vk::ClearValue {
+            color: vk::ClearColorValue {
+                float32: [0.0, 0.0, 0.0, 0.0],
+            },
+        }];
+
+        let mut render_pass_begin = vk::RenderPassBeginInfo {
+            render_pass: shader.render_pass,
+            framebuffer: shader.framebuffer,
+            render_area: vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent: vk::Extent2D {
+                    width: visibility.width(),
+                    height: visibility.height(),
+                },
+            },
+            ..Default::default()
+        };
+        render_pass_begin = render_pass_begin.clear_values(&clear_values);
+
+        let push = PushConstants {
+            vertices: gpu_mesh.vertex_address() as _,
+            indices: gpu_mesh.index_address() as _,
+            width: visibility.width(),
+            height: visibility.height(),
+            padding0: 0.0,
+            padding1: 0.0,
+        };
+
+        let constants_bytes = unsafe {
+            std::slice::from_raw_parts(
+                &push as *const PushConstants as *const u8,
+                std::mem::size_of::<PushConstants>(),
+            )
+        };
+
+        unsafe {
+            vk.device
+                .cmd_begin_render_pass(cmd, &render_pass_begin, vk::SubpassContents::INLINE);
+            vk.device
+                .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, shader.pipeline);
+
+            vk.device.cmd_push_constants(
+                cmd,
+                shader.pipeline_layout,
+                vk::ShaderStageFlags::GEOMETRY,
+                0,
+                &constants_bytes,
+            );
+
+            vk.device
+                .cmd_draw(cmd, mesh.vertices.len() as u32, 25, 0, 0);
+
+            vk.device.cmd_end_render_pass(cmd);
+        }
         vk.end_single_use_cmd(cmd);
 
         let pixels_read = visibility.read_pixels(vk);

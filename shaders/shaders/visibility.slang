@@ -15,6 +15,8 @@ struct PushConstants
     uint *indices;
     uint width;
     uint height;
+    float padding0;
+    float padding1;
 };
 
 struct Varyings

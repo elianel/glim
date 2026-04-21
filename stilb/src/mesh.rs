@@ -325,4 +325,12 @@ impl GpuMesh {
         self.index_address = 0;
         self.vertex_address = 0;
     }
+
+    pub fn vertex_address(&self) -> u64 {
+        self.vertex_address
+    }
+
+    pub fn index_address(&self) -> u64 {
+        self.index_address
+    }
 }
