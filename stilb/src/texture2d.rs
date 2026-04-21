@@ -142,22 +142,11 @@ impl Texture2D {
 
         let cmd = vk.begin_single_use_cmd();
 
-        let subresource_range = vk::ImageSubresourceRange {
-            aspect_mask: vk::ImageAspectFlags::COLOR,
-            base_mip_level: 0,
-            level_count: 1,
-            base_array_layer: 0,
-            layer_count: 1,
-        };
-
-        let barrier = vk::ImageMemoryBarrier {
-            dst_access_mask: vk::AccessFlags::TRANSFER_WRITE,
-            old_layout: self.layout,
-            new_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-            image: self.image,
-            subresource_range,
-            ..Default::default()
-        };
+        let barrier = self.barrier(
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::AccessFlags::default(),
+            vk::AccessFlags::TRANSFER_WRITE,
+        );
 
         unsafe {
             vk.device.cmd_pipeline_barrier(
@@ -200,17 +189,11 @@ impl Texture2D {
             )
         };
 
-        let barrier = vk::ImageMemoryBarrier {
-            src_access_mask: vk::AccessFlags::TRANSFER_WRITE,
-            dst_access_mask: vk::AccessFlags::SHADER_READ,
-            old_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-            new_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            image: self.image,
-            subresource_range,
-            ..Default::default()
-        };
-
-        self.layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+        let barrier = self.barrier(
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            vk::AccessFlags::TRANSFER_WRITE,
+            vk::AccessFlags::SHADER_READ,
+        );
 
         unsafe {
             vk.device.cmd_pipeline_barrier(

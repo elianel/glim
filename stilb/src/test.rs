@@ -70,6 +70,42 @@ mod tests {
         let vk = &mut stilb_obj.vk;
 
         stilb_obj.meshes.push(get_test_mesh());
+        let mesh = &stilb_obj.meshes[0];
+
+        let mut texture2 = Texture2D::new(
+            vk,
+            2,
+            2,
+            vk::Format::R32G32B32A32_SFLOAT,
+            vk::ImageUsageFlags::STORAGE
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::SAMPLED,
+        );
+
+        #[rustfmt::skip]
+        let pixels: [f32; 16] = [
+            1.0, 0.0, 0.0, 1.0,
+            0.0, 1.0, 0.0, 1.0,
+            0.0, 0.0, 1.0, 1.0,
+            1.0, 1.0, 0.0, 1.0,
+        ];
+
+        texture2.set_pixels(vk, &pixels);
+
+        let pixels_read = texture2.read_pixels(vk);
+
+        save_bmp(
+            "../temp/read2.bmp",
+            texture2.width(),
+            texture2.height(),
+            &pixels_read,
+        )
+        .unwrap();
+
+        texture2.destroy(vk);
+
+        let mut gpu_mesh = GpuMesh::new(vk, mesh);
 
         let mut texture = Texture2D::new(
             vk,
@@ -81,18 +117,6 @@ mod tests {
                 | vk::ImageUsageFlags::TRANSFER_DST
                 | vk::ImageUsageFlags::SAMPLED,
         );
-
-        // #[rustfmt::skip]
-        // let pixels: [f32; 16] = [
-        //     1.0, 0.0, 0.0, 1.0,
-        //     0.0, 1.0, 0.0, 1.0,
-        //     0.0, 0.0, 1.0, 1.0,
-        //     1.0, 1.0, 0.0, 1.0,
-        // ];
-
-        let mesh = &stilb_obj.meshes[0];
-
-        let mut gpu_mesh = GpuMesh::new(vk, mesh);
 
         let mut test_shader = load_shader_test(vk);
         update_test_shader(vk, &test_shader, texture.view);
