@@ -6,7 +6,7 @@ use glfw_sys::{GLFWwindow, glfwCreateWindowSurface};
 
 use crate::{
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
-    mesh::{FfiMesh, GpuMesh, Mesh},
+    mesh::{FfiMesh, GpuMesh, Mesh, VulkanAs, create_tlas, destroy_vulkan_as},
     texture2d::Texture2D,
     vulkan_core::{VulkanConfig, VulkanContext},
     window::{initialize_window, platform_loop},
@@ -135,9 +135,16 @@ fn start_headless_bake(app: &mut Stilb) {
         app.config.preview_height,
     );
 
+    let mesh::AccelerationStructureType::RayQuery(blas) = &gpu_mesh.acceleration_structure else {
+        panic!("Expected RayQuery variant");
+    };
+
+    let tlas = create_tlas(vk, blas);
+
     let scene = Scene {
         mesh: gpu_mesh,
         visibility,
+        tlas,
     };
     app.scene = Some(scene);
 
@@ -145,12 +152,14 @@ fn start_headless_bake(app: &mut Stilb) {
         unreachable!();
     };
 
+    destroy_vulkan_as(vk, &mut scene.tlas);
     scene.mesh.destroy(&app.vk);
     scene.visibility.destroy(&app.vk);
 }
 
 pub struct Scene {
     pub mesh: GpuMesh,
+    pub tlas: VulkanAs,
     pub visibility: Texture2D,
 }
 
