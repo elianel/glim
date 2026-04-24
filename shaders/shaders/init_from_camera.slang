@@ -23,6 +23,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     if (coords.x >= resolution.x || coords.y >= resolution.y)
     {
+        VisibilityBuffer[coords] = EncodeVisibilityBuffer(float2(0, 0), 0, false, false);
         return;
     }
 

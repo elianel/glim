@@ -253,6 +253,46 @@ fn rasterize_visibility_from_camera(
     app.preview_initialized = true;
 }
 
+fn clear_texture(app: &mut Stilb, texture: &mut Texture2D, cmd: vk::CommandBuffer) {
+    let clear = vk::ClearColorValue {
+        float32: [0.0, 0.0, 0.0, 1.0],
+    };
+
+    let range = vk::ImageSubresourceRange {
+        aspect_mask: vk::ImageAspectFlags::COLOR,
+        base_mip_level: 0,
+        level_count: 1,
+        base_array_layer: 0,
+        layer_count: 1,
+    };
+
+    unsafe {
+        let barrier = texture.barrier(
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::AccessFlags::empty(),
+            vk::AccessFlags::TRANSFER_WRITE,
+        );
+
+        app.vk.device.cmd_pipeline_barrier(
+            cmd,
+            vk::PipelineStageFlags::TOP_OF_PIPE,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[barrier],
+        );
+
+        app.vk.device.cmd_clear_color_image(
+            cmd,
+            texture.image(),
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            &clear,
+            &[range],
+        );
+    }
+}
+
 // fn initialize_rays(app: &mut Stilb) {}
 
 fn start_bake(app: &mut Stilb, settings: LightmapSettings) {
@@ -315,6 +355,7 @@ fn bake_lightmap_group(app: &mut Stilb, group: &mut LightmapGroup) {
                     sample_index += 1;
                 }
 
+                #[cfg(debug_assertions)]
                 std::thread::sleep(Duration::from_millis(16));
 
                 previous_time = now;
@@ -405,6 +446,8 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) {
         if group.push.sample_index == 0 {
             rasterize_visibility_from_camera(app, &mut group.visibility, cmd);
             app.preview_initialized = true;
+
+            clear_texture(app, &mut group.diffuse_lightmap, cmd);
         }
 
         {
