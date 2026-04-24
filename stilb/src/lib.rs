@@ -352,8 +352,10 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) {
     };
 
     // todo: handle is_optimal
-
+    let fence = frame.fence;
     let cmd = frame.command_buffer;
+    let image_available_semaphore = frame.image_available_semaphore;
+    let render_finished_semaphore = frame.render_finished_semaphore;
 
     let begin_info = vk::CommandBufferBeginInfo {
         flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
@@ -490,7 +492,26 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) {
         }
 
         app.vk.device.end_command_buffer(cmd).unwrap();
+
+        let wait_dst_stage_mask = [vk::PipelineStageFlags::TRANSFER];
+        let cmds = [cmd];
+        let wait_semaphores = [image_available_semaphore];
+        let signal_semaphores = [render_finished_semaphore];
+        let submit_info = vk::SubmitInfo::default()
+            .command_buffers(&cmds)
+            .wait_semaphores(&wait_semaphores)
+            .signal_semaphores(&signal_semaphores)
+            .wait_dst_stage_mask(&wait_dst_stage_mask);
+
+        let submits = [submit_info];
+        app.vk
+            .device
+            .queue_submit(app.vk.compute_queue, &submits, fence)
+            .unwrap();
     };
+
+    app.vk.swapchain.frame_index =
+        (app.vk.swapchain.frame_index + 1) % app.vk.swapchain.frames.len();
 
     // let fence = render_sample(app, group);
 }

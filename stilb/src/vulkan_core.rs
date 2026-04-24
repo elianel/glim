@@ -286,6 +286,7 @@ impl VulkanContext {
         let swapchain = SwapchainData {
             swapchain: vk::SwapchainKHR::null(),
             frames: Vec::new(),
+            frame_index: 0,
         };
 
         let allocate_info = vk::CommandBufferAllocateInfo::default()
