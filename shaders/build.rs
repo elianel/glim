@@ -37,6 +37,12 @@ fn main() {
 
     shaders.push(Shader {
         ty: ShaderType::Compute,
+        src: "init_from_camera.slang".into(),
+        dst: "init_from_camera.spv".into(),
+    });
+
+    shaders.push(Shader {
+        ty: ShaderType::Compute,
         src: "bake_lights.slang".into(),
         dst: "bake_lights.spv".into(),
     });

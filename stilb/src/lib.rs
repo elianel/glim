@@ -6,11 +6,14 @@ use glfw_sys::{GLFWwindow, glfwCreateWindowSurface};
 
 use crate::{
     bmp::save_bmp,
+    camera::Camera,
     compute_shader::{
-        BakePushConstants, ComputeShader, load_bake_lights_shader, update_bake_lights_shader,
+        BakePushConstants, ComputeShader, InitFromCameraPushConstants, load_bake_lights_shader,
+        update_bake_lights_shader, update_init_from_camera_shader,
     },
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
     lights::Light,
+    math::Vector3,
     mesh::{FfiMesh, GpuMesh, Mesh, VulkanAs, create_tlas},
     texture2d::Texture2D,
     vulkan_core::{VulkanConfig, VulkanContext},
@@ -18,6 +21,7 @@ use crate::{
 };
 
 mod bmp;
+mod camera;
 mod compute_shader;
 mod graphics_shader;
 mod lights;
@@ -42,7 +46,10 @@ pub struct Stilb {
     pub gpu_mesh: GpuMesh,
     pub tlas: VulkanAs,
 
+    pub camera: Camera,
+
     pub bake_lights_shader: ComputeShader,
+    pub init_from_camera_shader: ComputeShader,
     // pub bake_init_shader: ComputeShader,
 }
 
@@ -58,6 +65,7 @@ pub struct LightmapSettings {
 
 pub struct LightmapGroup {
     pub settings: LightmapSettings,
+    pub push: BakePushConstants,
 
     pub albedo: Texture2D,
     pub visibility: Texture2D,
@@ -73,6 +81,7 @@ pub struct StilbConfig {
     preview_height: u32,
 }
 
+#[inline]
 pub fn as_bytes<T>(v: &T) -> &[u8] {
     unsafe { std::slice::from_raw_parts(v as *const T as *const u8, std::mem::size_of::<T>()) }
 }
@@ -83,14 +92,10 @@ pub fn blit_with_shader(vk: &VulkanContext, cmd: vk::CommandBuffer, image: vk::I
     // transition to general
 }
 
-fn start_preview_bake(app: &mut Stilb) {}
+fn init_from_bake(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
+    let vk = &mut app.vk;
+    let mesh = &app.gpu_mesh;
 
-fn rasterize_visibility(
-    vk: &mut VulkanContext,
-    mesh: &GpuMesh,
-    width: u32,
-    height: u32,
-) -> Texture2D {
     let visibility = Texture2D::new(
         vk,
         width,
@@ -166,20 +171,87 @@ fn rasterize_visibility(
     visibility
 }
 
+fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
+    let vk = &mut app.vk;
+    let shader = &app.init_from_camera_shader;
+
+    let mut visibility = Texture2D::new(
+        vk,
+        width,
+        height,
+        vk::Format::R32G32B32A32_SFLOAT,
+        vk::ImageUsageFlags::STORAGE
+            | vk::ImageUsageFlags::TRANSFER_SRC
+            | vk::ImageUsageFlags::TRANSFER_DST
+            | vk::ImageUsageFlags::SAMPLED,
+    );
+
+    update_init_from_camera_shader(vk, shader, app.tlas.acceleration_structure(), &visibility);
+
+    let cmd = vk.begin_single_use_cmd();
+
+    let barrier = visibility.barrier(
+        vk::ImageLayout::GENERAL,
+        vk::AccessFlags::default(),
+        vk::AccessFlags::SHADER_WRITE,
+    );
+
+    let push = InitFromCameraPushConstants {
+        camera_position: app.camera.position,
+        fov_half_tan: app.camera.fov.tan() / 2.0,
+        camera_direction: Vector3::new(0.0, 0.0, 1.0).normalize(),
+        pad: 0,
+    };
+
+    let constants_bytes = as_bytes(&push);
+
+    unsafe {
+        vk.device.cmd_pipeline_barrier(
+            cmd,
+            vk::PipelineStageFlags::TOP_OF_PIPE,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[barrier],
+        );
+
+        vk.device
+            .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+        vk.device.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::COMPUTE,
+            shader.pipeline_layout,
+            0,
+            &[shader.descriptor_set],
+            &[],
+        );
+
+        vk.device.cmd_push_constants(
+            cmd,
+            app.bake_lights_shader.pipeline_layout,
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &constants_bytes,
+        );
+
+        let groups_x = (width + 7) / 8;
+        let groups_y = (height + 7) / 8;
+        vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
+    }
+
+    vk.end_single_use_cmd(cmd);
+
+    visibility
+}
+
 // fn initialize_rays(app: &mut Stilb) {}
 
-fn start_headless_bake(app: &mut Stilb) {
+fn start_bake(app: &mut Stilb, settings: LightmapSettings) {
     assert!(app.cpu_meshes.len() > 0);
 
     app.gpu_mesh = GpuMesh::new(&app.vk, &app.cpu_meshes[0]);
-
-    let settings = LightmapSettings {
-        width: 512,
-        height: 512,
-        bounces: 2,
-        max_samples: 256,
-        denoise: false,
-    };
 
     let mesh::AccelerationStructureType::RayQuery(blas) = &app.gpu_mesh.acceleration_structure
     else {
@@ -188,36 +260,14 @@ fn start_headless_bake(app: &mut Stilb) {
 
     app.tlas = create_tlas(&app.vk, blas);
 
-    let visibility =
-        rasterize_visibility(&mut app.vk, &app.gpu_mesh, settings.width, settings.height);
+    let mut group = create_lightmap_group(app, settings);
 
-    let albedo = Texture2D::new(
-        &app.vk,
-        settings.width,
-        settings.height,
-        vk::Format::R32G32B32A32_SFLOAT,
-        vk::ImageUsageFlags::SAMPLED
-            | vk::ImageUsageFlags::TRANSFER_SRC
-            | vk::ImageUsageFlags::TRANSFER_DST,
-    );
+    bake_lightmap_group(app, &mut group);
 
-    let diffuse_lightmap = Texture2D::new(
-        &app.vk,
-        settings.width,
-        settings.height,
-        vk::Format::R32G32B32A32_SFLOAT,
-        vk::ImageUsageFlags::STORAGE
-            | vk::ImageUsageFlags::TRANSFER_SRC
-            | vk::ImageUsageFlags::TRANSFER_DST,
-    );
+    destroy_group(&app.vk, &mut group);
+}
 
-    let mut group = LightmapGroup {
-        settings,
-        visibility,
-        albedo,
-        diffuse_lightmap,
-    };
-
+fn bake_lightmap_group(app: &mut Stilb, group: &mut LightmapGroup) {
     update_bake_lights_shader(
         &app.vk,
         &app.bake_lights_shader,
@@ -227,30 +277,46 @@ fn start_headless_bake(app: &mut Stilb) {
         &group.diffuse_lightmap,
     );
 
+    for i in 0..group.settings.max_samples {
+        group.push.sample_index = i as u32;
+        bake_sample(app, group);
+    }
+
+    let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
+    save_bmp(
+        "../temp/diffuse_lightmap.bmp",
+        group.diffuse_lightmap.width(),
+        group.diffuse_lightmap.height(),
+        &pixels_read,
+    )
+    .unwrap();
+
+    let pixels_read = group.visibility.read_pixels(&app.vk);
+    save_bmp(
+        "../temp/visibility.bmp",
+        group.visibility.width(),
+        group.visibility.height(),
+        &pixels_read,
+    )
+    .unwrap();
+}
+
+fn bake_sample(app: &mut Stilb, group: &mut LightmapGroup) {
     let vk = &app.vk;
     let cmd = vk.begin_single_use_cmd();
 
-    let push = BakePushConstants {
-        vertices: app.gpu_mesh.vertex_address(),
-        indices: app.gpu_mesh.index_address(),
-        lights: 0,
-        lights_count: 0,
-        pad0: 0,
-        sampled_index: 0,
-        width: group.settings.width,
-        height: group.settings.height,
-        pad1: 0,
-    };
+    let constants_bytes = as_bytes(&group.push);
 
-    let constants_bytes = as_bytes(&push);
+    let barrier = group.diffuse_lightmap.barrier(
+        vk::ImageLayout::GENERAL,
+        vk::AccessFlags::default(),
+        vk::AccessFlags::SHADER_WRITE,
+    );
+
+    let groups_x = (group.settings.width + 7) / 8;
+    let groups_y = (group.settings.height + 7) / 8;
 
     unsafe {
-        let barrier = group.diffuse_lightmap.barrier(
-            vk::ImageLayout::GENERAL,
-            vk::AccessFlags::default(),
-            vk::AccessFlags::SHADER_WRITE,
-        );
-
         vk.device.cmd_pipeline_barrier(
             cmd,
             vk::PipelineStageFlags::TOP_OF_PIPE,
@@ -284,23 +350,58 @@ fn start_headless_bake(app: &mut Stilb) {
             &constants_bytes,
         );
 
-        let groups_x = (group.diffuse_lightmap.width() + 7) / 8;
-        let groups_y = (group.diffuse_lightmap.height() + 7) / 8;
         vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
     }
 
     vk.end_single_use_cmd(cmd);
+}
 
-    let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
-    save_bmp(
-        "../temp/diffuse_lightmap.bmp",
-        group.diffuse_lightmap.width(),
-        group.diffuse_lightmap.height(),
-        &pixels_read,
-    )
-    .unwrap();
+fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> LightmapGroup {
+    let visibility = if app.config.is_preview {
+        init_from_camera(app, settings.width, settings.height)
+    } else {
+        init_from_bake(app, settings.width, settings.height)
+    };
 
-    destroy_group(&app.vk, &mut group);
+    let albedo = Texture2D::new(
+        &app.vk,
+        settings.width,
+        settings.height,
+        vk::Format::R32G32B32A32_SFLOAT,
+        vk::ImageUsageFlags::SAMPLED
+            | vk::ImageUsageFlags::TRANSFER_SRC
+            | vk::ImageUsageFlags::TRANSFER_DST,
+    );
+
+    let diffuse_lightmap = Texture2D::new(
+        &app.vk,
+        settings.width,
+        settings.height,
+        vk::Format::R32G32B32A32_SFLOAT,
+        vk::ImageUsageFlags::STORAGE
+            | vk::ImageUsageFlags::TRANSFER_SRC
+            | vk::ImageUsageFlags::TRANSFER_DST,
+    );
+
+    let push = BakePushConstants {
+        vertices: app.gpu_mesh.vertex_address(),
+        indices: app.gpu_mesh.index_address(),
+        lights: 0,
+        lights_count: 0,
+        pad0: 0,
+        sample_index: 0,
+        width: settings.width,
+        height: settings.height,
+        pad1: 0,
+    };
+
+    LightmapGroup {
+        settings,
+        visibility,
+        albedo,
+        diffuse_lightmap,
+        push,
+    }
 }
 
 fn destroy_group(vk: &VulkanContext, group: &mut LightmapGroup) {
@@ -337,6 +438,15 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
 
     let bake_lights_shader = load_bake_lights_shader(&vk);
 
+    let camera = Camera {
+        position: Vector3::ONE,
+        yaw: 0.0,
+        pitch: 0.0,
+        fov: 60.0,
+    };
+
+    let init_from_camera_shader = load_bake_lights_shader(&vk);
+
     let stilb = Stilb {
         vk,
         cpu_meshes: Vec::new(),
@@ -347,6 +457,8 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         gpu_mesh: GpuMesh::null(),
         tlas: VulkanAs::null(),
         groups: Vec::new(),
+        camera,
+        init_from_camera_shader,
     };
 
     Box::into_raw(Box::new(stilb))
@@ -363,14 +475,28 @@ pub extern "C" fn add_mesh(stilb: *mut Stilb, raw: FfiMesh) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_run(stilb: *mut Stilb) {
-    let app = unsafe { &mut *stilb };
+pub extern "C" fn app_run(app: *mut Stilb) {
+    let app = unsafe { &mut *app };
+
+    let mut settings = LightmapSettings {
+        width: 512,
+        height: 512,
+        bounces: 3,
+        max_samples: 1,
+        denoise: false,
+    };
 
     if app.config.is_preview {
-        platform_loop(app.window);
-    } else {
-        start_headless_bake(app);
+        settings = LightmapSettings {
+            width: app.config.preview_width,
+            height: app.config.preview_height,
+            bounces: 3,
+            max_samples: 1,
+            denoise: false,
+        };
     }
+
+    start_bake(app, settings);
 }
 
 #[unsafe(no_mangle)]

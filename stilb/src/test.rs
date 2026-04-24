@@ -14,7 +14,7 @@ mod tests {
 
     fn get_test_config() -> StilbConfig {
         StilbConfig {
-            is_preview: false,
+            is_preview: true,
             preview_width: 512,
             preview_height: 512,
         }
@@ -287,6 +287,39 @@ mod tests {
     fn test_headless_bake() {
         let config = StilbConfig {
             is_preview: false,
+            preview_width: 512,
+            preview_height: 512,
+        };
+
+        let app = app_initialize(config);
+        let app = unsafe { &mut *app };
+
+        let mesh = get_test_mesh_moneky();
+
+        app.cpu_meshes.push(mesh);
+
+        app.cpu_lights.push(Light {
+            ty: lights::LightType::Point,
+            position: Vector3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            direction: Vector3::ZERO,
+            range: 5.0,
+            color: Vector3::ONE,
+            shadow_range_or_angle: 0.1,
+        });
+
+        app_run(app);
+
+        app_deinitialize(app);
+    }
+
+    #[test]
+    fn test_preview() {
+        let config = StilbConfig {
+            is_preview: true,
             preview_width: 512,
             preview_height: 512,
         };

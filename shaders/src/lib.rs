@@ -24,6 +24,17 @@ pub fn get_bake_lights_shader() -> &'static [u32] {
     &SHADER
 }
 
+pub fn get_init_from_camera_shader() -> &'static [u32] {
+    const LEN: usize = include_bytes!(concat!(env!("OUT_DIR"), "/init_from_camera.spv")).len() / 4;
+
+    static SHADER: [u32; LEN] = include_transmute!(
+        concat!(env!("OUT_DIR"), "/init_from_camera.spv"),
+        [u32; LEN]
+    );
+
+    &SHADER
+}
+
 pub fn get_visibility_fragment_shader() -> &'static [u32] {
     const LEN: usize =
         include_bytes!(concat!(env!("OUT_DIR"), "/visibility_fragment.spv")).len() / 4;

@@ -1,5 +1,23 @@
 #include "includes/bake_core.slang"
 
+[[vk::push_constant]]
+PushConstants Push;
+
+struct PushConstants
+{
+    Vertex *vertices;
+    uint *indices;
+
+    Light *lights;
+    uint lightCount;
+    float pad0;
+
+    uint sampleIndex;
+    uint width;
+    uint height;
+    float pad1;
+};
+
 [shader("compute")]
 [numthreads(8, 8, 1)]
 void main(uint3 threadID: SV_DispatchThreadID)
@@ -28,7 +46,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     result.rgb = surf.P;
 
-    Target0[coords] = float4(result.rgb, 1);
+    LightmapDiffuse[coords] = float4(result.rgb, 1);
 
     // InterlockedAdd(Target0[coords].x, 1);
     // InterlockedAdd(Target0[coords].y, 1);

@@ -16,10 +16,10 @@ impl Vector2 {
     pub const ZERO: Self = Self { x: 0.0, y: 0.0 };
     pub const ONE: Self = Self { x: 1.0, y: 1.0 };
 
-    pub fn abs(normal: Self) -> Self {
+    pub fn abs(self) -> Self {
         Self {
-            x: f32::abs(normal.x),
-            y: f32::abs(normal.y),
+            x: f32::abs(self.x),
+            y: f32::abs(self.y),
         }
     }
 }

@@ -268,7 +268,7 @@ impl VulkanContext {
 
         let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
             .pool_sizes(&mut pool_sizes)
-            .max_sets(1);
+            .max_sets(5);
 
         let descriptor_pool = unsafe { device.create_descriptor_pool(&descriptor_pool_info, None) }
             .expect("failed to create descriptor pool");

@@ -1,9 +1,9 @@
 use std::ffi::CStr;
 
 use ash::vk::{self, Handle};
-use shaders::{get_bake_lights_shader, get_test_shader};
+use shaders::{get_bake_lights_shader, get_init_from_camera_shader, get_test_shader};
 
-use crate::{lights::Light, mesh::Vertex, texture2d::Texture2D, vulkan_core::VulkanContext};
+use crate::{math::Vector3, texture2d::Texture2D, vulkan_core::VulkanContext};
 
 pub struct ComputeShader {
     module: vk::ShaderModule,
@@ -104,6 +104,90 @@ impl ComputeShader {
     }
 }
 
+#[repr(C)]
+pub struct InitFromCameraPushConstants {
+    pub camera_position: Vector3,
+    pub fov_half_tan: f32,
+    pub camera_direction: Vector3,
+    pub pad: u32,
+}
+
+pub fn load_init_from_camera_shader(vk: &VulkanContext) -> ComputeShader {
+    let mut bindings = Vec::new();
+
+    // VisibilityBuffer
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 2,
+        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
+    // TopLevelAS
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 0,
+        descriptor_type: vk::DescriptorType::ACCELERATION_STRUCTURE_KHR,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
+    let specialization_info = vk::SpecializationInfo::default();
+
+    let push_constant_ranges = [vk::PushConstantRange {
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        offset: 0,
+        size: std::mem::size_of::<InitFromCameraPushConstants>() as u32,
+    }];
+
+    ComputeShader::new(
+        vk,
+        get_init_from_camera_shader(),
+        &bindings,
+        &push_constant_ranges,
+        &specialization_info,
+    )
+}
+
+pub fn update_init_from_camera_shader(
+    vk: &VulkanContext,
+    shader: &ComputeShader,
+    tlas: vk::AccelerationStructureKHR,
+    visibility: &Texture2D,
+) {
+    let mut descriptor_writes = Vec::new();
+
+    // TopLevelAS
+    let tlas = [tlas];
+    let mut info =
+        vk::WriteDescriptorSetAccelerationStructureKHR::default().acceleration_structures(&tlas);
+    let write = vk::WriteDescriptorSet::default()
+        .push_next(&mut info)
+        .dst_set(shader.descriptor_set)
+        .dst_binding(0)
+        .descriptor_type(vk::DescriptorType::ACCELERATION_STRUCTURE_KHR)
+        .descriptor_count(1);
+    descriptor_writes.push(write);
+
+    // VisibilityBuffer
+    let info = [vk::DescriptorImageInfo {
+        image_view: visibility.view(),
+        image_layout: vk::ImageLayout::GENERAL,
+        ..Default::default()
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 2,
+        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+        ..Default::default()
+    };
+    write = write.image_info(&info);
+    descriptor_writes.push(write);
+
+    unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
+}
+
 pub fn load_shader_test(vk: &VulkanContext) -> ComputeShader {
     let mut bindings = Vec::new();
 
@@ -164,7 +248,7 @@ pub struct BakePushConstants {
     pub lights_count: u32,
     pub pad0: u32,
 
-    pub sampled_index: u32,
+    pub sample_index: u32,
     pub width: u32,
     pub height: u32,
     pub pad1: u32,

@@ -21,22 +21,4 @@ Texture2D<float4> Albedo;
 
 [[vk::image_format("rgba32f")]]
 [[vk::binding(4, 0)]]
-RWTexture2D<float4> Target0;
-
-[[vk::push_constant]]
-BakePushConstants Push;
-
-struct BakePushConstants
-{
-    Vertex *vertices;
-    uint *indices;
-
-    Light *lights;
-    uint lightCount;
-    float pad0;
-
-    uint sampleIndex;
-    uint width;
-    uint height;
-    float pad1;
-};
+RWTexture2D<float4> LightmapDiffuse;
