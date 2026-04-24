@@ -26,9 +26,21 @@ mod tests {
         assert_eq!(bytes.len() % std::mem::size_of::<Vertex>(), 0);
 
         let vertices: Vec<Vertex> = unsafe {
-            let ptr = bytes.as_ptr() as *const Vertex;
-            let len = bytes.len() / std::mem::size_of::<Vertex>();
-            std::slice::from_raw_parts(ptr, len).to_vec()
+            let (prefix, mid, suffix) = bytes.align_to::<Vertex>();
+            if !prefix.is_empty() || !suffix.is_empty() {
+                // If it wasn't perfectly aligned, we have to copy it manually
+                // or handle the offset. But for a test, we can just do this:
+                let mut v = Vec::with_capacity(bytes.len() / std::mem::size_of::<Vertex>());
+                std::ptr::copy_nonoverlapping(
+                    bytes.as_ptr(),
+                    v.as_mut_ptr() as *mut u8,
+                    bytes.len(),
+                );
+                v.set_len(bytes.len() / std::mem::size_of::<Vertex>());
+                v
+            } else {
+                mid.to_vec()
+            }
         };
 
         let indices: Vec<u32> = (0..vertices.len() as u32).collect();

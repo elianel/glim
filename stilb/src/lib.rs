@@ -9,7 +9,7 @@ use crate::{
     camera::Camera,
     compute_shader::{
         BakePushConstants, ComputeShader, InitFromCameraPushConstants, load_bake_lights_shader,
-        update_bake_lights_shader, update_init_from_camera_shader,
+        load_init_from_camera_shader, update_bake_lights_shader, update_init_from_camera_shader,
     },
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
     lights::Light,
@@ -198,7 +198,7 @@ fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
 
     let push = InitFromCameraPushConstants {
         camera_position: app.camera.position,
-        fov_half_tan: app.camera.fov.tan() / 2.0,
+        fov_half_tan: (app.camera.fov.to_radians() * 0.5).tan(),
         camera_direction: Vector3::new(0.0, 0.0, 1.0).normalize(),
         pad: 0,
     };
@@ -230,7 +230,7 @@ fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
 
         vk.device.cmd_push_constants(
             cmd,
-            app.bake_lights_shader.pipeline_layout,
+            shader.pipeline_layout,
             vk::ShaderStageFlags::COMPUTE,
             0,
             &constants_bytes,
@@ -242,6 +242,15 @@ fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
     }
 
     vk.end_single_use_cmd(cmd);
+
+    let pixels_read = visibility.read_pixels(&app.vk);
+    save_bmp(
+        "../temp/visibility.bmp",
+        visibility.width(),
+        visibility.height(),
+        &pixels_read,
+    )
+    .unwrap();
 
     visibility
 }
@@ -262,7 +271,7 @@ fn start_bake(app: &mut Stilb, settings: LightmapSettings) {
 
     let mut group = create_lightmap_group(app, settings);
 
-    bake_lightmap_group(app, &mut group);
+    // bake_lightmap_group(app, &mut group);
 
     destroy_group(&app.vk, &mut group);
 }
@@ -290,20 +299,12 @@ fn bake_lightmap_group(app: &mut Stilb, group: &mut LightmapGroup) {
         &pixels_read,
     )
     .unwrap();
-
-    let pixels_read = group.visibility.read_pixels(&app.vk);
-    save_bmp(
-        "../temp/visibility.bmp",
-        group.visibility.width(),
-        group.visibility.height(),
-        &pixels_read,
-    )
-    .unwrap();
 }
 
 fn bake_sample(app: &mut Stilb, group: &mut LightmapGroup) {
     let vk = &app.vk;
     let cmd = vk.begin_single_use_cmd();
+    let shader = &app.bake_lights_shader;
 
     let constants_bytes = as_bytes(&group.push);
 
@@ -327,24 +328,21 @@ fn bake_sample(app: &mut Stilb, group: &mut LightmapGroup) {
             &[barrier],
         );
 
-        vk.device.cmd_bind_pipeline(
-            cmd,
-            vk::PipelineBindPoint::COMPUTE,
-            app.bake_lights_shader.pipeline,
-        );
+        vk.device
+            .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
 
         vk.device.cmd_bind_descriptor_sets(
             cmd,
             vk::PipelineBindPoint::COMPUTE,
-            app.bake_lights_shader.pipeline_layout,
+            shader.pipeline_layout,
             0,
-            &[app.bake_lights_shader.descriptor_set],
+            &[shader.descriptor_set],
             &[],
         );
 
         vk.device.cmd_push_constants(
             cmd,
-            app.bake_lights_shader.pipeline_layout,
+            shader.pipeline_layout,
             vk::ShaderStageFlags::COMPUTE,
             0,
             &constants_bytes,
@@ -445,7 +443,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         fov: 60.0,
     };
 
-    let init_from_camera_shader = load_bake_lights_shader(&vk);
+    let init_from_camera_shader = load_init_from_camera_shader(&vk);
 
     let stilb = Stilb {
         vk,
@@ -500,14 +498,15 @@ pub extern "C" fn app_run(app: *mut Stilb) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_deinitialize(stilb: *mut Stilb) {
-    if !stilb.is_null() {
+pub extern "C" fn app_deinitialize(app: *mut Stilb) {
+    if !app.is_null() {
         // Take ownership back from the pointer and let Box drop it
-        let mut stilb = unsafe { Box::from_raw(stilb) };
+        let mut app = unsafe { Box::from_raw(app) };
 
-        stilb.bake_lights_shader.destroy(&stilb.vk);
-        stilb.gpu_mesh.destroy(&stilb.vk);
-        stilb.tlas.destroy(&stilb.vk);
+        app.bake_lights_shader.destroy(&app.vk);
+        app.gpu_mesh.destroy(&app.vk);
+        app.tlas.destroy(&app.vk);
+        app.init_from_camera_shader.destroy(&app.vk);
 
         println!("Stilb destroyed");
     }

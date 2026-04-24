@@ -49,5 +49,5 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     // get surface bary and prim id
 
-    VisibilityBuffer[coords] = float4(ray.P, 1);
+    VisibilityBuffer[coords] = float4(ray.D, 1);
 }

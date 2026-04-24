@@ -316,7 +316,7 @@ pub fn update_bake_lights_shader(
     tlas: vk::AccelerationStructureKHR,
     visibility: &Texture2D,
     albedo: &Texture2D,
-    diffuse_lightmap: &Texture2D,
+    lightmap_diffuse: &Texture2D,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -362,9 +362,9 @@ pub fn update_bake_lights_shader(
     write = write.image_info(&info);
     descriptor_writes.push(write);
 
-    // Target0
+    // LightmapDiffuse
     let info = [vk::DescriptorImageInfo {
-        image_view: diffuse_lightmap.view(),
+        image_view: lightmap_diffuse.view(),
         image_layout: vk::ImageLayout::GENERAL,
         ..Default::default()
     }];
