@@ -137,8 +137,6 @@ mod tests {
         )
         .unwrap();
 
-        texture2.destroy(vk);
-
         let mut texture = Texture2D::new(
             vk,
             config.preview_width,
@@ -200,7 +198,6 @@ mod tests {
         )
         .unwrap();
 
-        texture.destroy(vk);
         test_shader.destroy(vk);
 
         app_deinitialize(app);
@@ -301,7 +298,6 @@ mod tests {
         .unwrap();
 
         shader.destroy(vk);
-        visibility.destroy(vk);
         gpu_mesh.destroy(vk);
 
         app_deinitialize(app);
@@ -359,19 +355,45 @@ mod tests {
             ty: lights::LightType::Point,
             position: Vector3 {
                 x: 0.0,
-                y: 2.0,
+                y: 1.0,
                 z: 0.0,
             },
             direction: Vector3::ZERO,
             range: 10.0,
-            color: Vector3::new(1.0, 1.0, 1.0),
+            color: Vector3::new(2.0, 0.0, 0.0),
+            shadow_range_or_angle: 0.01,
+        });
+
+        app.cpu_lights.push(Light {
+            ty: lights::LightType::Point,
+            position: Vector3 {
+                x: 0.0,
+                y: 1.2,
+                z: 0.0,
+            },
+            direction: Vector3::ZERO,
+            range: 10.0,
+            color: Vector3::new(0.0, 2.0, 0.0),
+            shadow_range_or_angle: 0.01,
+        });
+
+        app.cpu_lights.push(Light {
+            ty: lights::LightType::Point,
+            position: Vector3 {
+                x: 0.0,
+                y: 1.1,
+                z: 0.0,
+            },
+            direction: Vector3::ZERO,
+            range: 10.0,
+            color: Vector3::new(0.0, 0.0, 2.0),
             shadow_range_or_angle: 0.01,
         });
 
         let settings = LightmapSettings {
             width: app.config.preview_width,
             height: app.config.preview_height,
-            bounce_count: 5,
+            bounce_count: 2,
             max_samples: 64,
             denoise: false,
         };

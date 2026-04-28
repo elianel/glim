@@ -271,6 +271,8 @@ fn clear_texture(
         layer_count: 1,
     };
 
+    let vk = &*app.vk.device;
+
     unsafe {
         let barrier = texture.barrier(
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
@@ -278,7 +280,7 @@ fn clear_texture(
             vk::AccessFlags::TRANSFER_WRITE,
         );
 
-        app.vk.device.cmd_pipeline_barrier(
+        vk.cmd_pipeline_barrier(
             cmd,
             vk::PipelineStageFlags::TOP_OF_PIPE,
             vk::PipelineStageFlags::TRANSFER,
@@ -288,7 +290,7 @@ fn clear_texture(
             &[barrier],
         );
 
-        app.vk.device.cmd_clear_color_image(
+        vk.cmd_clear_color_image(
             cmd,
             texture.image(),
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
@@ -347,8 +349,6 @@ fn bake_lightmap_group(app: &mut Stilb, group: LightmapGroup) {
                 }
 
                 if !render_sample_camera(app, &mut group) {
-                    destroy_group(&app.vk, &mut group);
-
                     group.settings.width = app.vk.swapchain.extent.width;
                     group.settings.height = app.vk.swapchain.extent.height;
                     app.config.preview_width = group.settings.width;
@@ -388,8 +388,6 @@ fn bake_lightmap_group(app: &mut Stilb, group: LightmapGroup) {
     unsafe {
         app.vk.device.device_wait_idle().unwrap();
     }
-
-    destroy_group(&app.vk, &mut group);
 }
 
 fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
@@ -400,13 +398,11 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
     let width = app.config.preview_width;
     let height = app.config.preview_height;
 
-    unsafe {
-        app.vk
-            .device
-            .wait_for_fences(&[frame.fence], true, u64::MAX)
-            .unwrap();
+    let vk = &*app.vk.device;
 
-        app.vk.device.reset_fences(&[frame.fence]).unwrap()
+    unsafe {
+        vk.wait_for_fences(&[frame.fence], true, u64::MAX).unwrap();
+        vk.reset_fences(&[frame.fence]).unwrap()
     }
 
     let (image_index, is_optimal) = match unsafe {
@@ -420,7 +416,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
         Ok(result) => result,
         Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
             unsafe {
-                app.vk.device.device_wait_idle().unwrap();
+                vk.device_wait_idle().unwrap();
             }
             app.vk.create_swapchain(width, height);
             return false;
@@ -449,15 +445,10 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
     };
 
     unsafe {
-        app.vk
-            .device
-            .reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+        vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
             .unwrap();
 
-        app.vk
-            .device
-            .begin_command_buffer(cmd, &begin_info)
-            .unwrap();
+        vk.begin_command_buffer(cmd, &begin_info).unwrap();
 
         if group.push.sample_index == 0 {
             rasterize_visibility_from_camera(app, &mut group.visibility, cmd);
@@ -468,6 +459,8 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
             clear_texture(app, &mut group.diffuse_lightmap, cmd, clear);
         }
 
+        let vk = &*app.vk.device;
+
         {
             let barrier = group.diffuse_lightmap.barrier(
                 vk::ImageLayout::GENERAL,
@@ -475,7 +468,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
                 vk::AccessFlags::SHADER_WRITE,
             );
 
-            app.vk.device.cmd_pipeline_barrier(
+            vk.cmd_pipeline_barrier(
                 cmd,
                 vk::PipelineStageFlags::TOP_OF_PIPE,
                 vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -490,6 +483,8 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
             render_sample(app, cmd, group);
             group.push.sample_index += 1;
         }
+
+        let vk = &*app.vk.device;
 
         let swapchain_image = &app.vk.swapchain.frames[image_index as usize];
 
@@ -510,7 +505,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
                 ..Default::default()
             };
 
-            app.vk.device.cmd_pipeline_barrier(
+            vk.cmd_pipeline_barrier(
                 cmd,
                 vk::PipelineStageFlags::COMPUTE_SHADER,
                 vk::PipelineStageFlags::TRANSFER,
@@ -546,7 +541,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
                 dst_offsets: [offset0, offset1],
             };
 
-            app.vk.device.cmd_blit_image(
+            vk.cmd_blit_image(
                 cmd,
                 group.diffuse_lightmap.image(),
                 vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
@@ -568,7 +563,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
                 ..Default::default()
             };
 
-            app.vk.device.cmd_pipeline_barrier(
+            vk.cmd_pipeline_barrier(
                 cmd,
                 vk::PipelineStageFlags::TRANSFER,
                 vk::PipelineStageFlags::BOTTOM_OF_PIPE,
@@ -579,7 +574,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
             );
         }
 
-        app.vk.device.end_command_buffer(cmd).unwrap();
+        vk.end_command_buffer(cmd).unwrap();
 
         let render_finished_semaphore =
             app.vk.swapchain.frames[image_index as usize].render_finished_semaphore;
@@ -595,9 +590,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
             .wait_dst_stage_mask(&wait_dst_stage_mask);
 
         let submits = [submit_info];
-        app.vk
-            .device
-            .queue_submit(app.vk.compute_queue, &submits, fence)
+        vk.queue_submit(app.vk.compute_queue, &submits, fence)
             .unwrap();
 
         let swapchains = [app.vk.swapchain.swapchain];
@@ -614,7 +607,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
         } {
             Ok(_) => {}
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                app.vk.device.device_wait_idle().unwrap();
+                vk.device_wait_idle().unwrap();
                 app.vk.create_swapchain(width, height);
                 return false;
             }
@@ -629,7 +622,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
 }
 
 fn render_sample(app: &mut Stilb, cmd: vk::CommandBuffer, group: &mut LightmapGroup) {
-    let vk = &app.vk;
+    let vk = &*app.vk.device;
     let shader = &app.bake_shader;
 
     let constants_bytes = as_bytes(&group.push);
@@ -662,10 +655,9 @@ fn render_sample(app: &mut Stilb, cmd: vk::CommandBuffer, group: &mut LightmapGr
         //     &[barrier2],
         // );
 
-        vk.device
-            .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+        vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
 
-        vk.device.cmd_bind_descriptor_sets(
+        vk.cmd_bind_descriptor_sets(
             cmd,
             vk::PipelineBindPoint::COMPUTE,
             shader.pipeline_layout,
@@ -674,7 +666,7 @@ fn render_sample(app: &mut Stilb, cmd: vk::CommandBuffer, group: &mut LightmapGr
             &[],
         );
 
-        vk.device.cmd_push_constants(
+        vk.cmd_push_constants(
             cmd,
             shader.pipeline_layout,
             vk::ShaderStageFlags::COMPUTE,
@@ -682,7 +674,7 @@ fn render_sample(app: &mut Stilb, cmd: vk::CommandBuffer, group: &mut LightmapGr
             &constants_bytes,
         );
 
-        vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
+        vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
     }
 }
 
@@ -772,12 +764,6 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
         diffuse_lightmap,
         push,
     }
-}
-
-fn destroy_group(vk: &VulkanContext, group: &mut LightmapGroup) {
-    group.albedo.destroy(vk);
-    group.diffuse_lightmap.destroy(vk);
-    group.visibility.destroy(vk);
 }
 
 #[unsafe(no_mangle)]
