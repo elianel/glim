@@ -299,6 +299,8 @@ impl Texture2D {
         src_access_mask: vk::AccessFlags,
         dst_access_mask: vk::AccessFlags,
     ) -> vk::ImageMemoryBarrier<'a> {
+        // assert!(self.layout != new_layout);
+
         let subresource_range = vk::ImageSubresourceRange {
             aspect_mask: vk::ImageAspectFlags::COLOR,
             base_mip_level: 0,

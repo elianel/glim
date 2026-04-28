@@ -460,7 +460,6 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
         if group.push.sample_index == 0 {
             rasterize_visibility_from_camera(app, &mut group.visibility, cmd);
             app.preview_initialized = true;
-
             clear_texture(app, &mut group.diffuse_lightmap, cmd);
         }
 
@@ -691,7 +690,7 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
 
     println!("creating lightmap group {:?}", &settings);
 
-    let albedo = Texture2D::new(
+    let mut albedo = Texture2D::new(
         &app.vk,
         settings.width,
         settings.height,
@@ -731,6 +730,30 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
         &albedo,
         &diffuse_lightmap,
     );
+
+    println!("visibility: {:#x}", visibility.image().as_raw());
+    println!("albedo: {:#x}", albedo.image().as_raw());
+    println!("diffuse_lightmap: {:#x}", diffuse_lightmap.image().as_raw());
+
+    let barrier = albedo.barrier(
+        vk::ImageLayout::GENERAL,
+        vk::AccessFlags::default(),
+        vk::AccessFlags::SHADER_READ,
+    );
+
+    let cmd = app.vk.begin_single_use_cmd();
+    unsafe {
+        app.vk.device.cmd_pipeline_barrier(
+            cmd,
+            vk::PipelineStageFlags::TOP_OF_PIPE,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[barrier],
+        );
+    }
+    app.vk.end_single_use_cmd(cmd);
 
     LightmapGroup {
         settings,

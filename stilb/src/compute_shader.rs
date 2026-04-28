@@ -225,21 +225,6 @@ pub fn update_test_shader(vk: &VulkanContext, shader: &ComputeShader, binding0: 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }
 
-// pub struct BakePushConstants
-// {
-//     Vertex *vertices;
-//     uint *indices;
-
-//     Light *lights;
-//     uint lightCount;
-//     float pad0;
-
-//     uint sampleIndex;
-//     uint width;
-//     uint height;
-//     float pad1;
-// };
-
 #[repr(C)]
 pub struct BakePushConstants {
     pub vertices: vk::DeviceAddress,
