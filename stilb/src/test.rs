@@ -60,44 +60,44 @@ mod tests {
         Mesh { vertices, indices }
     }
 
-    fn get_test_mesh() -> Mesh {
-        let vertices = [
-            Vector3::new(-0.5, 0.0, -0.5),
-            Vector3::new(0.5, 0.0, -0.5),
-            Vector3::new(0.5, 0.0, 0.5),
-            Vector3::new(-0.5, 0.0, 0.5),
-        ];
+    // fn get_test_mesh() -> Mesh {
+    //     let vertices = [
+    //         Vector3::new(-0.5, 0.0, -0.5),
+    //         Vector3::new(0.5, 0.0, -0.5),
+    //         Vector3::new(0.5, 0.0, 0.5),
+    //         Vector3::new(-0.5, 0.0, 0.5),
+    //     ];
 
-        let normals = [
-            Vector3::new(0.0, 1.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
-            Vector3::new(0.0, 1.0, 0.0),
-        ];
+    //     let normals = [
+    //         Vector3::new(0.0, 1.0, 0.0),
+    //         Vector3::new(0.0, 1.0, 0.0),
+    //         Vector3::new(0.0, 1.0, 0.0),
+    //         Vector3::new(0.0, 1.0, 0.0),
+    //     ];
 
-        let uvs = [
-            Vector2::new(0.0, 0.0),
-            Vector2::new(1.0, 0.0),
-            Vector2::new(1.0, 1.0),
-            Vector2::new(0.0, 1.0),
-        ];
+    //     let uvs = [
+    //         Vector2::new(0.0, 0.0),
+    //         Vector2::new(1.0, 0.0),
+    //         Vector2::new(1.0, 1.0),
+    //         Vector2::new(0.0, 1.0),
+    //     ];
 
-        let indices = [0, 2, 1, 2, 0, 3];
+    //     let indices = [0, 2, 1, 2, 0, 3];
 
-        assert!(uvs.len() == vertices.len());
-        assert!(normals.len() == vertices.len());
+    //     assert!(uvs.len() == vertices.len());
+    //     assert!(normals.len() == vertices.len());
 
-        let mesh = FfiMesh {
-            vertices: vertices.as_ptr(),
-            normals: normals.as_ptr(),
-            uvs: uvs.as_ptr(),
-            indices: indices.as_ptr(),
-            vertices_length: vertices.len() as u32,
-            indices_length: indices.len() as u32,
-        };
+    //     let mesh = FfiMesh {
+    //         vertices: vertices.as_ptr(),
+    //         normals: normals.as_ptr(),
+    //         uvs: uvs.as_ptr(),
+    //         indices: indices.as_ptr(),
+    //         vertices_length: vertices.len() as u32,
+    //         indices_length: indices.len() as u32,
+    //     };
 
-        Mesh::from_ffi_mesh(mesh)
-    }
+    //     Mesh::from_ffi_mesh(mesh)
+    // }
 
     #[test]
     fn test_initialize() {
@@ -352,8 +352,8 @@ mod tests {
     fn test_preview() {
         let config = StilbConfig {
             is_preview: true,
-            preview_width: 512,
-            preview_height: 512,
+            preview_width: 1024,
+            preview_height: 1024,
         };
 
         let app = app_initialize(config);

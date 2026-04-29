@@ -6,7 +6,7 @@ use shaders::{
     get_init_from_bake_vertex_shader,
 };
 
-use crate::{mesh::Vertex, texture2d::Texture2D, vulkan_context::VulkanContext};
+use crate::{texture2d::Texture2D, vulkan_context::VulkanContext};
 
 pub struct GraphicsShader {
     vertex_module: vk::ShaderModule,
@@ -14,7 +14,7 @@ pub struct GraphicsShader {
     geometry_module: vk::ShaderModule,
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
-    pub descriptor_set: vk::DescriptorSet,
+    // pub descriptor_set: vk::DescriptorSet,
     set_layout: vk::DescriptorSetLayout,
     pub framebuffer: vk::Framebuffer,
     pub render_pass: vk::RenderPass,
@@ -26,7 +26,7 @@ impl GraphicsShader {
         vertex_spv: Option<&[u32]>,
         fragment_spv: Option<&[u32]>,
         geometry_spv: Option<&[u32]>,
-        bindings: &[vk::DescriptorSetLayoutBinding],
+        _bindings: &[vk::DescriptorSetLayoutBinding],
         push_constant_ranges: &[vk::PushConstantRange],
         specialization_info: &vk::SpecializationInfo,
         target: &Texture2D,
@@ -227,7 +227,7 @@ impl GraphicsShader {
         // let descriptor_set =
         //     unsafe { vk.device.allocate_descriptor_sets(&allocate_info) }.unwrap()[0];
 
-        let descriptor_set = vk::DescriptorSet::null();
+        // let descriptor_set = vk::DescriptorSet::null();
         let set_layout = vk::DescriptorSetLayout::null();
 
         Self {
@@ -236,7 +236,7 @@ impl GraphicsShader {
             geometry_module,
             pipeline,
             pipeline_layout,
-            descriptor_set,
+            // descriptor_set,
             set_layout,
             framebuffer,
             render_pass,

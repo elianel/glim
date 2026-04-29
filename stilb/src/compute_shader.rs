@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 
 use ash::vk::{self, Handle};
-use shaders::{get_bake_shader, get_init_from_camera_shader, get_test_shader};
+use shaders::{get_bake_shader, get_init_from_camera_shader};
 
 use crate::{as_bytes, math::Vector3, texture2d::Texture2D, vulkan_context::VulkanContext};
 
@@ -189,7 +189,10 @@ pub fn update_init_from_camera_shader(
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }
 
+#[cfg(test)]
 pub fn load_shader_test(vk: &VulkanContext) -> ComputeShader {
+    use shaders::get_test_shader;
+
     let mut bindings = Vec::new();
 
     bindings.push(vk::DescriptorSetLayoutBinding {
@@ -205,6 +208,7 @@ pub fn load_shader_test(vk: &VulkanContext) -> ComputeShader {
     ComputeShader::new(vk, get_test_shader(), &bindings, &[], &specialization_info)
 }
 
+#[cfg(test)]
 pub fn update_test_shader(vk: &VulkanContext, shader: &ComputeShader, binding0: vk::ImageView) {
     let image_info = [vk::DescriptorImageInfo {
         image_view: binding0,

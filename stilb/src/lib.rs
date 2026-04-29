@@ -95,11 +95,8 @@ pub fn as_bytes<T>(v: &T) -> &[u8] {
     unsafe { std::slice::from_raw_parts(v as *const T as *const u8, std::mem::size_of::<T>()) }
 }
 
-pub fn blit_with_shader(vk: &VulkanContext, cmd: vk::CommandBuffer, image: vk::ImageView) {
-
-    // vk.device.bindre
-    // transition to general
-}
+// pub fn blit_with_shader(vk: &VulkanContext, cmd: vk::CommandBuffer, image: vk::ImageView) {
+// }
 
 fn init_from_bake(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
     let vk = &mut app.vk;
@@ -413,7 +410,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
         vk.reset_fences(&[frame.fence]).unwrap()
     }
 
-    let (image_index, is_optimal) = match unsafe {
+    let (image_index, _is_optimal) = match unsafe {
         app.vk.swapchain_device.acquire_next_image(
             app.vk.swapchain.swapchain,
             u64::MAX,
