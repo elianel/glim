@@ -107,29 +107,34 @@ pub fn update_camera(app: &mut Stilb, delta_time: f32) {
         let world_up = Vector3::new(0.0, 1.0, 0.0);
         let right = forward.cross(world_up).normalize();
 
+        let mut direction = Vector3::ZERO;
         if glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS {
-            camera.position = camera.position + forward * move_speed;
+            direction = direction + forward;
             camera_moved = true;
         }
         if glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS {
-            camera.position = camera.position - forward * move_speed;
+            direction = direction - forward;
             camera_moved = true;
         }
         if glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS {
-            camera.position = camera.position + right * move_speed;
+            direction = direction + right;
             camera_moved = true;
         }
         if glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS {
-            camera.position = camera.position - right * move_speed;
+            direction = direction - right;
             camera_moved = true;
         }
         if glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS {
-            camera.position = camera.position + Vector3::new(0.0, 1.0, 0.0) * move_speed;
+            direction = direction + Vector3::new(0.0, 1.0, 0.0);
             camera_moved = true;
         }
         if glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS {
-            camera.position = camera.position - Vector3::new(0.0, 1.0, 0.0) * move_speed;
+            direction = direction - Vector3::new(0.0, 1.0, 0.0);
             camera_moved = true;
+        }
+
+        if camera_moved {
+            camera.position = camera.position + direction.normalize() * move_speed;
         }
     }
 

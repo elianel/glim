@@ -882,7 +882,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
 
     let sampler_linear_clamp = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
 
-    let stilb = Stilb {
+    let app = Stilb {
         vk,
         cpu_meshes: Vec::new(),
         window: window,
@@ -899,17 +899,14 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         sampler_linear_clamp,
     };
 
-    Box::into_raw(Box::new(stilb))
+    Box::into_raw(Box::new(app))
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn add_mesh(stilb: *mut Stilb, raw: FfiMesh) {
-    unsafe {
-        let stilb_obj = &mut *stilb;
-        let mesh = Mesh::from_ffi_mesh(raw);
-        // println!("Added mesh: {:#?}", mesh);
-        stilb_obj.cpu_meshes.push(mesh);
-    }
+pub extern "C" fn add_mesh(app: *mut Stilb, raw: FfiMesh) {
+    let app = unsafe { &mut *app };
+    let mesh = Mesh::from_ffi_mesh(raw);
+    app.cpu_meshes.push(mesh);
 }
 
 #[unsafe(no_mangle)]
@@ -949,6 +946,6 @@ pub extern "C" fn app_deinitialize(app: *mut Stilb) {
                 .destroy_sampler(app.sampler_linear_clamp, None)
         };
 
-        println!("Stilb destroyed");
+        println!("App destroyed");
     }
 }
