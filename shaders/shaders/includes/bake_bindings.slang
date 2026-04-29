@@ -28,4 +28,4 @@ Texture2D<float4> Emission;
 RWTexture2D<float4> LightmapDiffuse;
 
 [[vk::binding(6, 0)]]
-SamplerState SamplerPointClamp;
+SamplerState SamplerLinearClamp;

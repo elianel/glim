@@ -57,7 +57,7 @@ pub struct Stilb {
     // pub bake_init_shader: ComputeShader,
     pub preview_initialized: bool,
 
-    pub sampler_bilinear_clamp: vk::Sampler,
+    pub sampler_linear_clamp: vk::Sampler,
 }
 
 #[derive(Clone, Debug)]
@@ -764,7 +764,7 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
         &albedo,
         &emission,
         &diffuse_lightmap,
-        app.sampler_bilinear_clamp,
+        app.sampler_linear_clamp,
     );
 
     println!("visibility: {:#x}", visibility.image().as_raw());
@@ -880,7 +880,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         .border_color(vk::BorderColor::FLOAT_OPAQUE_BLACK)
         .unnormalized_coordinates(false);
 
-    let sampler_bilinear_clamp = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
+    let sampler_linear_clamp = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
 
     let stilb = Stilb {
         vk,
@@ -896,7 +896,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         init_from_camera_shader,
         preview_initialized: false,
         gpu_lights,
-        sampler_bilinear_clamp,
+        sampler_linear_clamp,
     };
 
     Box::into_raw(Box::new(stilb))
@@ -946,7 +946,7 @@ pub extern "C" fn app_deinitialize(app: *mut Stilb) {
         unsafe {
             app.vk
                 .device
-                .destroy_sampler(app.sampler_bilinear_clamp, None)
+                .destroy_sampler(app.sampler_linear_clamp, None)
         };
 
         println!("Stilb destroyed");

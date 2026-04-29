@@ -85,9 +85,6 @@ void main(uint3 threadID: SV_DispatchThreadID)
         return;
     }
 
-    // float2 atlasResolution;
-    // Albedo.GetDimensions(atlasResolution.x, atlasResolution.y);
-
     float4 visibility = VisibilityBuffer[coords];
 
     uint encoded = asuint(visibility.a);
@@ -112,12 +109,11 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     float2 hammersley = Hammersley(sampleIndex, sampleCount);
 
-    float3 primaryEmission = Emission.SampleLevel(SamplerPointClamp, surface.uv, 0).rgb;
-    color += primaryEmission * throughput;
-
     if (USE_CAMERA > 0)
     {
-        float3 albedo = Albedo.SampleLevel(SamplerPointClamp, surface.uv, 0).rgb;
+        float3 primaryEmission = Emission.SampleLevel(SamplerLinearClamp, surface.uv, 0).rgb;
+        float3 albedo = Albedo.SampleLevel(SamplerLinearClamp, surface.uv, 0).rgb;
+        color += primaryEmission * throughput;
         throughput = albedo;
     }
 
@@ -160,8 +156,8 @@ void main(uint3 threadID: SV_DispatchThreadID)
             }
 
             float2 uv = surfaceBounce.uv;
-            float3 bounceAlbedo = Albedo.SampleLevel(SamplerPointClamp, uv, 0).rgb;
-            float3 bounceEmission = Emission.SampleLevel(SamplerPointClamp, uv, 0).rgb;
+            float3 bounceAlbedo = Albedo.SampleLevel(SamplerLinearClamp, uv, 0).rgb;
+            float3 bounceEmission = Emission.SampleLevel(SamplerLinearClamp, uv, 0).rgb;
 
             color += bounceEmission * throughput;
 
