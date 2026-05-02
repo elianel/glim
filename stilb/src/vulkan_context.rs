@@ -118,14 +118,25 @@ impl VulkanContext {
             vk::SurfaceKHR::null()
         };
 
-        let physical_devices = unsafe { instance.enumerate_physical_devices().unwrap() };
+        let mut physical_devices = unsafe { instance.enumerate_physical_devices().unwrap() };
+        physical_devices.sort_by_key(|&pd| {
+            let props = unsafe { instance.get_physical_device_properties(pd) };
+            match props.device_type {
+                vk::PhysicalDeviceType::DISCRETE_GPU => 0,
+                vk::PhysicalDeviceType::INTEGRATED_GPU => 1,
+                vk::PhysicalDeviceType::VIRTUAL_GPU => 2,
+                vk::PhysicalDeviceType::CPU => 3,
+                _ => 4,
+            }
+        });
+
         for physical_device in &physical_devices {
             let properties = unsafe { instance.get_physical_device_properties(*physical_device) };
 
             let name = properties.device_name_as_c_str();
             println!("Device {:?}", name);
+            // println!("Properties {:#?}", properties);
         }
-        // TODO: find the right device
         let physical_device = physical_devices[0];
 
         let queue_family_indices = find_queue_families(&instance, physical_device);
@@ -228,11 +239,7 @@ impl VulkanContext {
         let present_queue = unsafe { device.get_device_queue(queue_family_indices.present, 0) };
 
         // for now only this is supported
-        assert_eq!(compute_queue, graphics_queue);
-
-        if config.enable_window {
-            // create_swapchain();
-        }
+        // assert_eq!(compute_queue, graphics_queue);
 
         let pool_info = vk::CommandPoolCreateInfo {
             flags: vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,

@@ -6,6 +6,7 @@ mod tests {
         bmp::save_bmp,
         compute_shader::{load_shader_test, update_test_shader},
         graphics_shader::{VisibilityPushConstants, create_visibility_shader},
+        lights::LightType,
         math::*,
         mesh::{GpuMesh, Vertex},
         texture2d::Texture2D,
@@ -363,18 +364,31 @@ mod tests {
 
         app.cpu_meshes.push(mesh);
 
-        // app.cpu_lights.push(Light {
-        //     ty: lights::LightType::Point,
-        //     position: Vector3 {
-        //         x: 0.0,
-        //         y: 1.0,
-        //         z: 0.0,
-        //     },
-        //     direction: Vector3::ZERO,
-        //     range: 10.0,
-        //     color: Vector3::new(1.0, 1.0, 1.0) * 0.1,
-        //     shadow_range_or_angle: 0.01,
-        // });
+        let light = Light {
+            ty: LightType::Point,
+            position: Vector3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            direction: Vector3::ZERO,
+            range: 10.0,
+            color: Vector3::new(1.0, 1.0, 1.0) * 0.1,
+            shadow_range_or_angle: 0.01,
+        };
+
+        app.cpu_lights.push(Light {
+            ty: lights::LightType::Directional,
+            position: Vector3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            direction: Vector3::new(1.0, 1.0, -1.0).normalize(),
+            range: 10.0,
+            color: Vector3::new(1.0, 1.0, 1.0),
+            shadow_range_or_angle: 0.5,
+        });
 
         // app.cpu_lights.push(Light {
         //     ty: lights::LightType::Point,
