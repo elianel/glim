@@ -60,6 +60,16 @@ pub struct Stilb {
     pub sampler_linear_clamp: vk::Sampler,
 
     pub push: BakePushConstants,
+
+    pub lightmap_mode: LightmapMode,
+}
+
+pub enum LightmapMode {
+    NonDirectional {
+        visibility: Texture2D,
+        diffuse: Texture2D,
+    },
+    None,
 }
 
 #[repr(C)]
@@ -82,9 +92,8 @@ pub struct LightmapGroup {
 
     pub albedo: Texture2D,
     pub emission: Texture2D,
-
-    pub visibility: Texture2D,
-    pub diffuse_lightmap: Texture2D,
+    // pub visibility: Texture2D,
+    // pub diffuse_lightmap: Texture2D,
 }
 
 #[repr(C)]
@@ -103,7 +112,7 @@ pub fn as_bytes<T>(v: &T) -> &[u8] {
 // pub fn blit_with_shader(vk: &VulkanContext, cmd: vk::CommandBuffer, image: vk::ImageView) {
 // }
 
-fn init_from_bake(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
+fn render_visibility_buffer_bake(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
     let vk = &mut app.vk;
     let mesh = &app.gpu_mesh;
 
@@ -182,7 +191,7 @@ fn init_from_bake(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
     visibility
 }
 
-fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
+fn render_visibility_buffer_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
     let vk = &mut app.vk;
     let shader = &app.init_from_camera_shader;
 
@@ -201,11 +210,7 @@ fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
     visibility
 }
 
-fn rasterize_visibility_from_camera(
-    app: &mut Stilb,
-    visibility: &mut Texture2D,
-    cmd: vk::CommandBuffer,
-) {
+fn rasterize_visibility_from_camera(app: &mut Stilb, cmd: vk::CommandBuffer) {
     let width = app.config.preview_width;
     let height = app.config.preview_height;
 
@@ -215,6 +220,14 @@ fn rasterize_visibility_from_camera(
     let push = app.camera.make_push_constants();
 
     let constants_bytes = as_bytes(&push);
+
+    let LightmapMode::NonDirectional {
+        visibility,
+        diffuse: _,
+    } = &mut app.lightmap_mode
+    else {
+        unreachable!()
+    };
 
     unsafe {
         if visibility.layout() != vk::ImageLayout::GENERAL {
@@ -263,7 +276,7 @@ fn rasterize_visibility_from_camera(
 }
 
 fn clear_texture(
-    app: &mut Stilb,
+    vk: &VulkanContext,
     texture: &mut Texture2D,
     cmd: vk::CommandBuffer,
     clear: vk::ClearColorValue,
@@ -276,7 +289,7 @@ fn clear_texture(
         layer_count: 1,
     };
 
-    let vk = &app.vk.device;
+    let vk = &vk.device;
 
     unsafe {
         let barrier = texture.barrier(
@@ -337,7 +350,7 @@ fn update_push_constants(app: &mut Stilb, settings: &LightmapSettings) {
         sample_index: 0,
         width: width,
         height: height,
-        max_samples: settings.max_samples,
+        max_samples: settings.max_samples, // todo preview max samples and bounce
         bounce_count: settings.bounce_count,
     };
 }
@@ -348,7 +361,29 @@ fn bake_lightmap_group(app: &mut Stilb, group: LightmapGroup) {
     if app.config.is_preview {
         let window = app.window;
 
+        update_lightmap_mode(app, &group.settings);
+
         update_push_constants(app, &group.settings);
+
+        let LightmapMode::NonDirectional {
+            visibility,
+            diffuse,
+        } = &mut app.lightmap_mode
+        else {
+            unreachable!()
+        };
+
+        update_bake_lights_shader(
+            &app.vk,
+            &app.bake_shader,
+            app.tlas.acceleration_structure(),
+            &visibility,
+            &group.albedo,
+            &group.emission,
+            &diffuse,
+            app.sampler_linear_clamp,
+        );
+
         app.push.sample_index = 0;
 
         let mut previous_time = std::time::Instant::now();
@@ -376,10 +411,10 @@ fn bake_lightmap_group(app: &mut Stilb, group: LightmapGroup) {
                 }
 
                 if !render_sample_camera(app, &mut group) {
-                    destroy_group(&app.vk, &mut group);
                     app.config.preview_width = app.vk.swapchain.extent.width;
                     app.config.preview_height = app.vk.swapchain.extent.height;
-                    group = create_lightmap_group(app, group.settings);
+
+                    update_lightmap_mode(app, &group.settings);
 
                     app.push.sample_index = 0;
                     app.preview_initialized = false;
@@ -393,27 +428,35 @@ fn bake_lightmap_group(app: &mut Stilb, group: LightmapGroup) {
             }
         }
     } else {
-        let width = group.settings.width;
-        let height = group.settings.height;
+        // let width = group.settings.width;
+        // let height = group.settings.height;
 
-        update_push_constants(app, &group.settings);
+        // update_push_constants(app, &group.settings);
 
-        for i in 0..group.settings.max_samples {
-            app.push.sample_index = i as u32;
+        // for i in 0..group.settings.max_samples {
+        //     app.push.sample_index = i as u32;
 
-            let cmd = app.vk.begin_single_use_cmd();
-            render_sample(app, cmd, &mut group, width, height);
-            app.vk.end_single_use_cmd(cmd);
-        }
+        //     let cmd = app.vk.begin_single_use_cmd();
+        //     render_sample(app, cmd, &mut group, width, height);
+        //     app.vk.end_single_use_cmd(cmd);
+        // }
 
-        let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
-        save_bmp(
-            "../temp/diffuse_lightmap.bmp",
-            group.diffuse_lightmap.width(),
-            group.diffuse_lightmap.height(),
-            &pixels_read,
-        )
-        .unwrap();
+        // match app.lightmap_mode {
+        //     LightmapMode::NonDirectional {
+        //         visibility,
+        //         diffuse,
+        //     } => todo!(),
+        //     LightmapMode::None => todo!(),
+        // }
+
+        // let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
+        // save_bmp(
+        //     "../temp/diffuse_lightmap.bmp",
+        //     group.diffuse_lightmap.width(),
+        //     group.diffuse_lightmap.height(),
+        //     &pixels_read,
+        // )
+        // .unwrap();
     }
 
     unsafe {
@@ -484,17 +527,34 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
         vk.begin_command_buffer(cmd, &begin_info).unwrap();
 
         if app.push.sample_index == 0 {
-            rasterize_visibility_from_camera(app, &mut group.visibility, cmd);
+            rasterize_visibility_from_camera(app, cmd);
             app.preview_initialized = true;
             let clear = vk::ClearColorValue {
                 float32: [0.0, 0.0, 0.0, 0.0],
             };
-            clear_texture(app, &mut group.diffuse_lightmap, cmd, clear);
+
+            let LightmapMode::NonDirectional {
+                visibility,
+                diffuse,
+            } = &mut app.lightmap_mode
+            else {
+                unreachable!()
+            };
+
+            clear_texture(&app.vk, diffuse, cmd, clear);
         }
 
         let vk = &app.vk.device;
 
-        let barrier = group.diffuse_lightmap.barrier(
+        let LightmapMode::NonDirectional {
+            visibility,
+            diffuse,
+        } = &mut app.lightmap_mode
+        else {
+            unreachable!()
+        };
+
+        let barrier = diffuse.barrier(
             vk::ImageLayout::GENERAL,
             vk::AccessFlags::default(),
             vk::AccessFlags::SHADER_WRITE,
@@ -513,19 +573,26 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
             render_sample(
                 app,
                 cmd,
-                group,
                 app.config.preview_width,
                 app.config.preview_height,
             );
             app.push.sample_index += 1;
         }
 
+        let LightmapMode::NonDirectional {
+            visibility,
+            diffuse,
+        } = &mut app.lightmap_mode
+        else {
+            unreachable!()
+        };
+
         let swapchain_image = &app.vk.swapchain.frames[image_index as usize];
 
         let vk = &app.vk.device;
 
         {
-            let barrier = group.diffuse_lightmap.barrier(
+            let barrier = diffuse.barrier(
                 vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
                 vk::AccessFlags::SHADER_WRITE,
                 vk::AccessFlags::TRANSFER_READ,
@@ -579,7 +646,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
 
             vk.cmd_blit_image(
                 cmd,
-                group.diffuse_lightmap.image(),
+                diffuse.image(),
                 vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
                 swapchain_image.image,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,
@@ -660,7 +727,7 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) -> bool {
 fn render_sample(
     app: &mut Stilb,
     cmd: vk::CommandBuffer,
-    group: &mut LightmapGroup,
+    // group: &mut LightmapGroup,
     width: u32,
     height: u32,
 ) {
@@ -721,13 +788,43 @@ fn render_sample(
     }
 }
 
-fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> LightmapGroup {
+fn update_lightmap_mode(app: &mut Stilb, settings: &LightmapSettings) {
     let visibility = if app.config.is_preview {
-        init_from_camera(app, app.config.preview_width, app.config.preview_height)
+        render_visibility_buffer_camera(app, app.config.preview_width, app.config.preview_height)
     } else {
-        init_from_bake(app, settings.width, settings.height)
+        render_visibility_buffer_bake(app, settings.width, settings.height)
     };
 
+    let (target_width, target_height) = if app.config.is_preview {
+        (app.config.preview_width, app.config.preview_height)
+    } else {
+        (settings.width, settings.height)
+    };
+
+    // todo: destroy if not null
+
+    let diffuse = Texture2D::new(
+        &app.vk,
+        target_width,
+        target_height,
+        vk::Format::R32G32B32A32_SFLOAT,
+        vk::ImageUsageFlags::STORAGE
+            | vk::ImageUsageFlags::TRANSFER_SRC
+            | vk::ImageUsageFlags::TRANSFER_DST,
+    );
+
+    println!("visibility: {:#x}", visibility.image().as_raw());
+    println!("diffuse_lightmap: {:#x}", diffuse.image().as_raw());
+
+    if app.config.is_preview {
+        app.lightmap_mode = LightmapMode::NonDirectional {
+            visibility,
+            diffuse,
+        };
+    }
+}
+
+fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> LightmapGroup {
     // println!("creating lightmap group {:?}", &settings);
 
     let mut albedo = Texture2D::new(
@@ -761,56 +858,15 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
         emission.set_pixels(&app.vk, pixels);
     }
 
-    let (target_width, target_height) = if app.config.is_preview {
-        (app.config.preview_width, app.config.preview_height)
-    } else {
-        (settings.width, settings.height)
-    };
-
-    let diffuse_lightmap = Texture2D::new(
-        &app.vk,
-        target_width,
-        target_height,
-        vk::Format::R32G32B32A32_SFLOAT,
-        vk::ImageUsageFlags::STORAGE
-            | vk::ImageUsageFlags::TRANSFER_SRC
-            | vk::ImageUsageFlags::TRANSFER_DST,
-    );
-
-    let push = BakePushConstants {
-        vertices: app.gpu_mesh.vertex_address(),
-        indices: app.gpu_mesh.index_address(),
-        lights: app.gpu_lights.address(),
-        lights_count: app.cpu_lights.len() as u32,
-        sample_index: 0,
-        width: target_width,
-        height: target_height,
-        max_samples: settings.max_samples,
-        bounce_count: settings.bounce_count,
-    };
-
-    update_bake_lights_shader(
-        &app.vk,
-        &app.bake_shader,
-        app.tlas.acceleration_structure(),
-        &visibility,
-        &albedo,
-        &emission,
-        &diffuse_lightmap,
-        app.sampler_linear_clamp,
-    );
-
-    println!("visibility: {:#x}", visibility.image().as_raw());
     println!("albedo: {:#x}", albedo.image().as_raw());
     println!("emission: {:#x}", emission.image().as_raw());
-    println!("diffuse_lightmap: {:#x}", diffuse_lightmap.image().as_raw());
 
     let cmd = app.vk.begin_single_use_cmd();
     unsafe {
         let clear = vk::ClearColorValue {
             float32: [1.0, 1.0, 1.0, 1.0],
         };
-        clear_texture(app, &mut albedo, cmd, clear);
+        clear_texture(&app.vk, &mut albedo, cmd, clear);
 
         let barrier = albedo.barrier(
             vk::ImageLayout::GENERAL,
@@ -837,17 +893,13 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
 
     LightmapGroup {
         settings,
-        visibility,
         albedo,
-        diffuse_lightmap,
         emission,
     }
 }
 
 fn destroy_group(vk: &VulkanContext, group: &mut LightmapGroup) {
     group.albedo.destroy(vk);
-    group.diffuse_lightmap.destroy(vk);
-    group.visibility.destroy(vk);
     group.emission.destroy(vk);
 }
 
@@ -942,6 +994,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         gpu_lights,
         sampler_linear_clamp,
         push,
+        lightmap_mode: LightmapMode::None,
     };
 
     Box::into_raw(Box::new(app))
