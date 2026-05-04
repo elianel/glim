@@ -43,7 +43,7 @@ pub struct Stilb {
     pub window: *mut GLFWwindow,
 
     // pub group_settings: Vec<LightmapSettings>,
-    pub cpu_meshes: Vec<Mesh>,
+    pub cpu_mesh: Mesh,
     pub cpu_lights: Vec<Light>,
     pub groups: Vec<LightmapGroup>,
 
@@ -315,7 +315,7 @@ fn clear_texture(
 }
 
 fn start_bake(app: &mut Stilb) {
-    assert!(app.cpu_meshes.len() > 0);
+    assert!(app.cpu_mesh.vertices.len() > 0);
 
     app.bake_shader =
         load_bake_lights_shader(&app.vk, app.config.is_preview, app.groups.len() as u32);
@@ -327,22 +327,24 @@ fn start_bake(app: &mut Stilb) {
     }
 
     // merge and upload mesh
-    let total_vertices = app.cpu_meshes.iter().map(|mesh| mesh.vertices.len()).sum();
-    let total_indices = app.cpu_meshes.iter().map(|mesh| mesh.indices.len()).sum();
+    // let total_vertices = app.cpu_mesh.iter().map(|mesh| mesh.vertices.len()).sum();
+    // let total_indices = app.cpu_mesh.iter().map(|mesh| mesh.indices.len()).sum();
 
-    let mut vertices = Vec::with_capacity(total_vertices);
-    let mut indices = Vec::with_capacity(total_indices);
+    // let mut vertices = Vec::with_capacity(total_vertices);
+    // let mut indices = Vec::with_capacity(total_indices);
 
-    for mesh in &app.cpu_meshes {
-        let offset = vertices.len() as u32;
+    // for mesh in &app.cpu_mesh {
+    //     let offset = vertices.len() as u32;
 
-        vertices.extend(&mesh.vertices);
-        indices.extend(mesh.indices.iter().map(|i| i + offset));
-    }
-    // free cpu meshes
-    app.cpu_meshes = Vec::new();
-    let merged_mesh = Mesh { vertices, indices };
-    app.gpu_mesh = GpuMesh::new(&app.vk, &merged_mesh);
+    //     vertices.extend(&mesh.vertices);
+    //     indices.extend(mesh.indices.iter().map(|i| i + offset));
+    // }
+    app.gpu_mesh = GpuMesh::new(&app.vk, &app.cpu_mesh);
+    // free cpu mesh
+    app.cpu_mesh = Mesh {
+        vertices: Vec::new(),
+        indices: Vec::new(),
+    };
 
     let mesh::AccelerationStructureType::RayQuery(blas) = &app.gpu_mesh.acceleration_structure
     else {
@@ -1009,9 +1011,14 @@ impl Stilb {
             bounce_count: 0,
         };
 
+        let cpu_mesh = Mesh {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+        };
+
         Self {
             vk,
-            cpu_meshes: Vec::new(),
+            cpu_mesh,
             window: window,
             config: config,
             cpu_lights: Vec::new(),

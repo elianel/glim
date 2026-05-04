@@ -357,8 +357,8 @@ mod tests {
 
         {
             let app = unsafe { &mut *app };
-            app.cpu_meshes.push(mesh);
-            app.cpu_meshes.push(mesh2);
+            app.cpu_mesh.merge_mesh(&mesh);
+            app.cpu_mesh.merge_mesh(&mesh2);
         }
 
         app_add_light(

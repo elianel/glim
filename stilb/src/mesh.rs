@@ -63,6 +63,13 @@ impl Mesh {
             indices: triangles_copy,
         }
     }
+
+    pub fn merge_mesh(&mut self, mesh: &Mesh) {
+        let offset = self.vertices.len() as u32;
+
+        self.vertices.extend(&mesh.vertices);
+        self.indices.extend(mesh.indices.iter().map(|i| i + offset));
+    }
 }
 
 pub struct VulkanAs {
