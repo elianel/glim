@@ -1,5 +1,7 @@
 use std::slice;
 
+use ash::vk::Handle;
+
 use crate::{
     LightmapGroup, LightmapSettings, RenderTarget, Stilb, StilbConfig,
     lights::Light,
@@ -72,7 +74,9 @@ pub extern "C" fn app_destroy(app: *mut Stilb) {
             diffuse.destroy(&app.vk);
         };
 
-        app.bake_shader.destroy(&app.vk);
+        if !app.bake_shader.pipeline.is_null() {
+            app.bake_shader.destroy(&app.vk);
+        }
         app.gpu_mesh.destroy(&app.vk);
         app.tlas.destroy(&app.vk);
         app.init_from_camera_shader.destroy(&app.vk);

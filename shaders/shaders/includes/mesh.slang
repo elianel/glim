@@ -36,6 +36,8 @@ struct Surface
     float3 N;
     float2 uv;
 
+    uint lightmapGroup;
+
     static Surface Get(uint *indices, Vertex *vertices, uint primitiveID, float2 bary)
     {
         float u = bary.x;
@@ -80,6 +82,7 @@ struct Surface
         surface.N = N;
         surface.smoothP = smoothP;
         surface.uv = uv;
+        surface.lightmapGroup = v0.GetLightmapGroup();
         return surface;
     };
 };

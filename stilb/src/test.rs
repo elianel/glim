@@ -3,13 +3,13 @@ mod tests {
     use crate::bindings::*;
     use crate::{lights::LightType, math::*, mesh::Vertex, *};
 
-    fn get_test_config() -> StilbConfig {
-        StilbConfig {
-            is_preview: true,
-            preview_width: 512,
-            preview_height: 512,
-        }
-    }
+    // fn get_test_config() -> StilbConfig {
+    //     StilbConfig {
+    //         is_preview: true,
+    //         preview_width: 512,
+    //         preview_height: 512,
+    //     }
+    // }
 
     fn get_test_mesh_moneky() -> Mesh {
         let bytes = include_bytes!("../../meshes/monkey.bin");

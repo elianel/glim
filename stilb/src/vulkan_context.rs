@@ -285,8 +285,6 @@ impl VulkanContext {
         let descriptor_pool = unsafe { device.create_descriptor_pool(&descriptor_pool_info, None) }
             .expect("failed to create descriptor pool");
 
-        // todo: semaphores and fences
-
         let as_device = if has_ray_query {
             Some(khr::acceleration_structure::Device::new(&instance, &device))
         } else {

@@ -1,4 +1,4 @@
-use std::{ptr, slice, time::Duration};
+use std::{ptr, time::Duration};
 
 use ash::vk::{self, Handle};
 
@@ -16,7 +16,7 @@ use crate::{
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
     lights::{GpuLights, Light},
     math::Vector3,
-    mesh::{FfiMesh, GpuMesh, Mesh, VulkanAs, create_tlas},
+    mesh::{GpuMesh, Mesh, VulkanAs, create_tlas},
     texture2d::Texture2D,
     vulkan_context::{VulkanConfig, VulkanContext},
     window::{initialize_window, update_camera},
@@ -317,6 +317,9 @@ fn clear_texture(
 fn start_bake(app: &mut Stilb) {
     assert!(app.cpu_meshes.len() > 0);
 
+    app.bake_shader =
+        load_bake_lights_shader(&app.vk, app.config.is_preview, app.groups.len() as u32);
+
     // upload lights
     if app.cpu_lights.len() > 0 {
         let gpu_lights = GpuLights::new(&app.vk, &app.cpu_lights);
@@ -366,7 +369,7 @@ fn initialize_bake_push_constants(
         sample_index: 0,
         width: width,
         height: height,
-        max_samples, // todo preview max samples and bounce
+        max_samples,
         bounce_count,
     };
 }
@@ -391,14 +394,17 @@ fn bake_lightmaps(app: &mut Stilb) {
         else {
             unreachable!()
         };
+
+        let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
+        let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
         update_bake_lights_shader(
             &app.vk,
             &app.bake_shader,
             app.tlas.acceleration_structure(),
-            &visibility,
-            &app.groups[0].albedo,
-            &app.groups[0].emission,
-            &diffuse,
+            visibility.view(),
+            &albedos,
+            &emissions,
+            diffuse.view(),
             app.sampler_linear_clamp,
         );
 
@@ -438,14 +444,15 @@ fn bake_lightmaps(app: &mut Stilb) {
                     else {
                         unreachable!()
                     };
+
                     update_bake_lights_shader(
                         &app.vk,
                         &app.bake_shader,
                         app.tlas.acceleration_structure(),
-                        &visibility,
-                        &app.groups[0].albedo,
-                        &app.groups[0].emission,
-                        &diffuse,
+                        visibility.view(),
+                        &albedos,
+                        &emissions,
+                        diffuse.view(),
                         app.sampler_linear_clamp,
                     );
 
@@ -885,36 +892,35 @@ impl LightmapGroup {
         println!("albedo: {:#x}", albedo.image().as_raw());
         println!("emission: {:#x}", emission.image().as_raw());
 
-        let cmd = app.vk.begin_single_use_cmd();
-        unsafe {
-            // let clear = vk::ClearColorValue {
-            //     float32: [1.0, 1.0, 1.0, 1.0],
-            // };
-            // clear_texture(&app.vk, &mut albedo, cmd, clear);
+        // let cmd = app.vk.begin_single_use_cmd();
+        // unsafe {
+        //     // let clear = vk::ClearColorValue {
+        //     //     float32: [1.0, 1.0, 1.0, 1.0],
+        //     // };
+        //     // clear_texture(&app.vk, &mut albedo, cmd, clear);
 
-            let barrier = albedo.barrier(
-                vk::ImageLayout::GENERAL,
-                vk::AccessFlags::default(),
-                vk::AccessFlags::SHADER_READ,
-            );
-            let barrier1 = emission.barrier(
-                vk::ImageLayout::GENERAL,
-                vk::AccessFlags::default(),
-                vk::AccessFlags::SHADER_READ,
-            );
+        //     let barrier = albedo.barrier(
+        //         vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        //         vk::AccessFlags::default(),
+        //         vk::AccessFlags::SHADER_READ,
+        //     );
+        //     let barrier1 = emission.barrier(
+        //         vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        //         vk::AccessFlags::default(),
+        //         vk::AccessFlags::SHADER_READ,
+        //     );
 
-            app.vk.device.cmd_pipeline_barrier(
-                cmd,
-                vk::PipelineStageFlags::TOP_OF_PIPE,
-                vk::PipelineStageFlags::COMPUTE_SHADER,
-                vk::DependencyFlags::empty(),
-                &[],
-                &[],
-                &[barrier, barrier1],
-            );
-        }
-
-        app.vk.end_single_use_cmd(cmd);
+        //     app.vk.device.cmd_pipeline_barrier(
+        //         cmd,
+        //         vk::PipelineStageFlags::TOP_OF_PIPE,
+        //         vk::PipelineStageFlags::COMPUTE_SHADER,
+        //         vk::DependencyFlags::empty(),
+        //         &[],
+        //         &[],
+        //         &[barrier, barrier1],
+        //     );
+        // }
+        // app.vk.end_single_use_cmd(cmd);
 
         LightmapGroup {
             settings,
@@ -954,8 +960,6 @@ impl Stilb {
         if config.is_preview {
             vk.create_swapchain(config.preview_width, config.preview_height);
         }
-
-        let bake_lights_shader = load_bake_lights_shader(&vk, config.is_preview);
 
         let mut camera = Camera {
             position: Vector3::new(0.0, 1.0, -5.0),
@@ -1012,7 +1016,7 @@ impl Stilb {
             window: window,
             config: config,
             cpu_lights: Vec::new(),
-            bake_shader: bake_lights_shader,
+            bake_shader: ComputeShader::null(),
             gpu_mesh: GpuMesh::null(),
             tlas: VulkanAs::null(),
             groups: Vec::new(),

@@ -111,9 +111,9 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     if (USE_CAMERA > 0)
     {
-        float3 primaryEmission = Emission.SampleLevel(SamplerLinearClamp, surface.uv, 0).rgb;
-        float3 albedo = Albedo.SampleLevel(SamplerLinearClamp, surface.uv, 0).rgb;
-        color += primaryEmission * throughput;
+        float3 emission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
+        float3 albedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
+        color += emission * throughput;
         throughput = albedo;
     }
 
@@ -155,9 +155,8 @@ void main(uint3 threadID: SV_DispatchThreadID)
                 surfaceBounce.Ng = -surfaceBounce.Ng;
             }
 
-            float2 uv = surfaceBounce.uv;
-            float3 bounceAlbedo = Albedo.SampleLevel(SamplerLinearClamp, uv, 0).rgb;
-            float3 bounceEmission = Emission.SampleLevel(SamplerLinearClamp, uv, 0).rgb;
+            float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
+            float3 bounceAlbedo = SampleAlbedo(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
 
             color += bounceEmission * throughput;
 

@@ -14,6 +14,15 @@ pub struct ComputeShader {
 }
 
 impl ComputeShader {
+    pub fn null() -> Self {
+        Self {
+            module: vk::ShaderModule::null(),
+            pipeline: vk::Pipeline::null(),
+            pipeline_layout: vk::PipelineLayout::null(),
+            descriptor_set: vk::DescriptorSet::null(),
+            set_layout: vk::DescriptorSetLayout::null(),
+        }
+    }
     pub fn new(
         vk: &VulkanContext,
         code: &[u32],
@@ -244,7 +253,11 @@ pub struct BakePushConstants {
     pub bounce_count: u32,
 }
 
-pub fn load_bake_lights_shader(vk: &VulkanContext, use_camera: bool) -> ComputeShader {
+pub fn load_bake_lights_shader(
+    vk: &VulkanContext,
+    use_camera: bool,
+    lightmap_groups: u32,
+) -> ComputeShader {
     let mut bindings = Vec::new();
 
     // TopLevelAS
@@ -269,7 +282,7 @@ pub fn load_bake_lights_shader(vk: &VulkanContext, use_camera: bool) -> ComputeS
     bindings.push(vk::DescriptorSetLayoutBinding {
         binding: 3,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-        descriptor_count: 1,
+        descriptor_count: lightmap_groups,
         stage_flags: vk::ShaderStageFlags::COMPUTE,
         ..Default::default()
     });
@@ -278,7 +291,7 @@ pub fn load_bake_lights_shader(vk: &VulkanContext, use_camera: bool) -> ComputeS
     bindings.push(vk::DescriptorSetLayoutBinding {
         binding: 5,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-        descriptor_count: 1,
+        descriptor_count: lightmap_groups,
         stage_flags: vk::ShaderStageFlags::COMPUTE,
         ..Default::default()
     });
@@ -335,10 +348,10 @@ pub fn update_bake_lights_shader(
     vk: &VulkanContext,
     shader: &ComputeShader,
     tlas: vk::AccelerationStructureKHR,
-    target_visibility: &Texture2D,
-    albedo: &Texture2D, // todo abledo and emission array
-    emission: &Texture2D,
-    target_diffuse: &Texture2D,
+    target_visibility: vk::ImageView,
+    albedos: &[vk::ImageView],
+    emissions: &[vk::ImageView],
+    target_diffuse: vk::ImageView,
     sampler: vk::Sampler,
 ) {
     let mut descriptor_writes = Vec::new();
@@ -357,7 +370,7 @@ pub fn update_bake_lights_shader(
 
     // VisibilityBuffer
     let info = [vk::DescriptorImageInfo {
-        image_view: target_visibility.view(),
+        image_view: target_visibility,
         image_layout: vk::ImageLayout::GENERAL,
         ..Default::default()
     }];
@@ -371,33 +384,41 @@ pub fn update_bake_lights_shader(
     descriptor_writes.push(write);
 
     // Albedo
-    let info = [vk::DescriptorImageInfo {
-        image_view: albedo.view(),
-        image_layout: vk::ImageLayout::GENERAL,
-        ..Default::default()
-    }];
+    let infos: Vec<vk::DescriptorImageInfo> = albedos
+        .iter()
+        .map(|tex| vk::DescriptorImageInfo {
+            image_view: *tex,
+            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            ..Default::default()
+        })
+        .collect();
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
         dst_binding: 3,
+        dst_array_element: 0,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
         ..Default::default()
     };
-    write = write.image_info(&info);
+    write = write.image_info(&infos);
     descriptor_writes.push(write);
 
     // Emission
-    let info = [vk::DescriptorImageInfo {
-        image_view: emission.view(),
-        image_layout: vk::ImageLayout::GENERAL,
-        ..Default::default()
-    }];
+    let infos: Vec<vk::DescriptorImageInfo> = emissions
+        .iter()
+        .map(|tex| vk::DescriptorImageInfo {
+            image_view: *tex,
+            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            ..Default::default()
+        })
+        .collect();
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
         dst_binding: 5,
+        dst_array_element: 0,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
         ..Default::default()
     };
-    write = write.image_info(&info);
+    write = write.image_info(&infos);
     descriptor_writes.push(write);
 
     let info = [vk::DescriptorImageInfo {
@@ -416,7 +437,7 @@ pub fn update_bake_lights_shader(
 
     // LightmapDiffuse
     let info = [vk::DescriptorImageInfo {
-        image_view: target_diffuse.view(),
+        image_view: target_diffuse,
         image_layout: vk::ImageLayout::GENERAL,
         ..Default::default()
     }];

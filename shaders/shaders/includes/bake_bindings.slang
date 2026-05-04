@@ -15,13 +15,11 @@ StructuredBuffer<float4> CWBVHTriangles;
 [[vk::binding(2, 0)]]
 RWTexture2D<float4> VisibilityBuffer;
 
-[[vk::image_format("rgba32f")]]
 [[vk::binding(3, 0)]]
-Texture2D<float4> Albedo;
+Texture2D<float4> Albedo[];
 
-[[vk::image_format("rgba32f")]]
 [[vk::binding(5, 0)]]
-Texture2D<float4> Emission;
+Texture2D<float4> Emission[];
 
 [[vk::image_format("rgba32f")]]
 [[vk::binding(4, 0)]]
@@ -29,3 +27,13 @@ RWTexture2D<float4> LightmapDiffuse;
 
 [[vk::binding(6, 0)]]
 SamplerState SamplerLinearClamp;
+
+float4 SampleAlbedo(float2 uv, uint lightmapGroup)
+{
+    return Albedo[NonUniformResourceIndex(lightmapGroup)].SampleLevel(SamplerLinearClamp, uv, 0);
+}
+
+float4 SampleEmission(float2 uv, uint lightmapGroup)
+{
+    return Emission[NonUniformResourceIndex(lightmapGroup)].SampleLevel(SamplerLinearClamp, uv, 0);
+}
