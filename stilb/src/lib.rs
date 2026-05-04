@@ -1,4 +1,4 @@
-use std::{ptr, time::Duration};
+use std::{ptr, slice, time::Duration};
 
 use ash::vk::{self, Handle};
 
@@ -42,7 +42,7 @@ pub struct Stilb {
     pub vk: VulkanContext,
     pub window: *mut GLFWwindow,
 
-    pub groups: Vec<LightmapSettings>,
+    pub group_settings: Vec<LightmapSettings>,
     pub cpu_meshes: Vec<Mesh>,
     pub cpu_lights: Vec<Light>,
 
@@ -60,6 +60,7 @@ pub struct Stilb {
     pub sampler_linear_clamp: vk::Sampler,
 }
 
+#[repr(C)]
 #[derive(Clone, Debug)]
 pub struct LightmapSettings {
     pub width: u32,
@@ -69,7 +70,9 @@ pub struct LightmapSettings {
     pub bounce_count: u32,
 
     pub denoise: bool,
-    pub emission_pixels: Vec<f32>,
+
+    pub emission_pixels: *const f32,
+    pub emission_pixels_length: u32,
 }
 
 pub struct LightmapGroup {
@@ -722,8 +725,15 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
             | vk::ImageUsageFlags::TRANSFER_DST,
     );
 
-    if settings.emission_pixels.len() > 0 {
-        emission.set_pixels(&app.vk, &settings.emission_pixels);
+    if settings.emission_pixels_length > 0 {
+        let pixels = unsafe {
+            slice::from_raw_parts(
+                settings.emission_pixels,
+                settings.emission_pixels_length as usize,
+            )
+        };
+
+        emission.set_pixels(&app.vk, pixels);
     }
 
     let (target_width, target_height) = if app.config.is_preview {
@@ -889,7 +899,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         bake_shader: bake_lights_shader,
         gpu_mesh: GpuMesh::null(),
         tlas: VulkanAs::null(),
-        groups: Vec::new(),
+        group_settings: Vec::new(),
         camera,
         init_from_camera_shader,
         preview_initialized: false,
@@ -901,10 +911,22 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn add_mesh(app: *mut Stilb, raw: FfiMesh) {
+pub extern "C" fn app_add_mesh(app: *mut Stilb, raw: FfiMesh) {
     let app = unsafe { &mut *app };
     let mesh = Mesh::from_ffi_mesh(raw);
     app.cpu_meshes.push(mesh);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn app_add_light(app: *mut Stilb, light: Light) {
+    let app = unsafe { &mut *app };
+    app.cpu_lights.push(light);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn app_add_lightmap_group(app: *mut Stilb, settings: LightmapSettings) {
+    let app = unsafe { &mut *app };
+    app.group_settings.push(settings);
 }
 
 #[unsafe(no_mangle)]
@@ -913,7 +935,7 @@ pub extern "C" fn app_run(app: *mut Stilb) {
 
     // assert!(app.cpu_lights.len() > 0);
 
-    let settings = app.groups[0].clone();
+    let settings = app.group_settings[0].clone();
 
     if app.cpu_lights.len() > 0 {
         let gpu_lights = GpuLights::new(&app.vk, &app.cpu_lights);

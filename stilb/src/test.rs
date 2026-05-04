@@ -358,66 +358,46 @@ mod tests {
         };
 
         let app = app_initialize(config);
-        let app = unsafe { &mut *app };
-
         let mesh = get_test_mesh_moneky();
 
-        app.cpu_meshes.push(mesh);
+        {
+            let app = unsafe { &mut *app };
+            app.cpu_meshes.push(mesh);
+        }
 
-        let light = Light {
-            ty: LightType::Point,
-            position: Vector3 {
-                x: 0.0,
-                y: 1.0,
-                z: 0.0,
+        app_add_light(
+            app,
+            Light {
+                ty: LightType::Point,
+                position: Vector3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+                direction: Vector3::ZERO,
+                range: 10.0,
+                color: Vector3::new(1.0, 1.0, 1.0) * 0.1,
+                shadow_range_or_angle: 0.01,
             },
-            direction: Vector3::ZERO,
-            range: 10.0,
-            color: Vector3::new(1.0, 1.0, 1.0) * 0.1,
-            shadow_range_or_angle: 0.01,
-        };
+        );
 
-        app.cpu_lights.push(Light {
-            ty: lights::LightType::Directional,
-            position: Vector3 {
-                x: 0.0,
-                y: 1.0,
-                z: 0.0,
+        app_add_light(
+            app,
+            Light {
+                ty: lights::LightType::Directional,
+                position: Vector3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+                direction: Vector3::new(1.0, 1.0, -1.0).normalize(),
+                range: 10.0,
+                color: Vector3::new(1.0, 1.0, 1.0),
+                shadow_range_or_angle: 0.5,
             },
-            direction: Vector3::new(1.0, 1.0, -1.0).normalize(),
-            range: 10.0,
-            color: Vector3::new(1.0, 1.0, 1.0),
-            shadow_range_or_angle: 0.5,
-        });
+        );
 
-        // app.cpu_lights.push(Light {
-        //     ty: lights::LightType::Point,
-        //     position: Vector3 {
-        //         x: 0.0,
-        //         y: 1.2,
-        //         z: 0.0,
-        //     },
-        //     direction: Vector3::ZERO,
-        //     range: 10.0,
-        //     color: Vector3::new(0.0, 2.0, 0.0),
-        //     shadow_range_or_angle: 0.01,
-        // });
-
-        // app.cpu_lights.push(Light {
-        //     ty: lights::LightType::Point,
-        //     position: Vector3 {
-        //         x: 0.0,
-        //         y: 1.1,
-        //         z: 0.0,
-        //     },
-        //     direction: Vector3::ZERO,
-        //     range: 10.0,
-        //     color: Vector3::new(0.0, 0.0, 2.0),
-        //     shadow_range_or_angle: 0.01,
-        // });
-
-        let (w, h, emission_pixels) =
-            load_tga("D:\\Dev\\stilb_rs\\textures\\emission.tga").unwrap();
+        let (w, h, emission_pixels) = load_tga("..\\textures\\emission.tga").unwrap();
 
         let settings = LightmapSettings {
             width: w,
@@ -425,10 +405,11 @@ mod tests {
             bounce_count: 2,
             max_samples: 256,
             denoise: false,
-            emission_pixels,
+            emission_pixels: emission_pixels.as_ptr(),
+            emission_pixels_length: emission_pixels.len() as u32,
         };
 
-        app.groups.push(settings);
+        app_add_lightmap_group(app, settings);
 
         app_run(app);
 
