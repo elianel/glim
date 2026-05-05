@@ -41,8 +41,8 @@ namespace stilb
             {
                 coordinate_system = Bindings.CoordinateSystem.Unity,
                 is_preview = true,
-                preview_width = 1280,
-                preview_height = 720,
+                preview_width = 1024,
+                preview_height = 1024,
                 camera_position = camera.transform.position,
                 camera_forward = camera.transform.forward,
             };
@@ -105,6 +105,11 @@ namespace stilb
             var emission = metaEmission
                 .CreateAtlas(staticRenderers, MetaTexture.AtlasType.Emission)
                 .GetData<Color>().ToArray();
+
+            Debug.Log($"Group width: {lightmapSettings.width}, height:{lightmapSettings.height}");
+            Debug.Log($"Vertices: {meshData.Sum(x => x.vertices.Length)}");
+            Debug.Log($"Indices: {meshData.Sum(x => x.triangles.Length)}");
+            Debug.Log($"Lights: {lightsData.Count}");
 
             var thread = new Thread(() =>
             {
