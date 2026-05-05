@@ -30,21 +30,22 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn from_ffi_mesh(mesh: FfiMesh, system: CoordinateSystem) -> Self {
+    pub fn append_ffi_mesh(&mut self, mesh: FfiMesh, system: CoordinateSystem) {
         let verts = unsafe { slice::from_raw_parts(mesh.vertices, mesh.vertices_length as usize) };
         let normals = unsafe { slice::from_raw_parts(mesh.normals, mesh.vertices_length as usize) };
         let uvs = unsafe { slice::from_raw_parts(mesh.uvs, mesh.vertices_length as usize) };
         let indices = unsafe { slice::from_raw_parts(mesh.indices, mesh.indices_length as usize) };
 
-        let mut vertices_copy = Vec::with_capacity(verts.len());
-        let mut triangles_copy = Vec::with_capacity(indices.len());
+        let offset = self.vertices.len() as u32;
 
         let group = mesh.lightmap_group as f32;
+
+        self.vertices.reserve(verts.len());
 
         for i in 0..verts.len() {
             let mut uv = uvs[i];
             uv.x = uv.x.clamp(0.0, 1.0) + group;
-            uv.y = uv.y.clamp(0.0, 1.0) + group;
+            uv.y = (1.0 - uv.y.clamp(0.0, 1.0)) + group;
 
             let mut vertex = Vertex {
                 position: verts[i],
@@ -56,27 +57,22 @@ impl Mesh {
             vertex.normal.transform_space(system);
             vertex.position.transform_space(system);
 
-            vertices_copy.push(vertex);
+            self.vertices.push(vertex);
         }
 
         match system {
             CoordinateSystem::Default => {
-                triangles_copy.extend(indices);
+                self.indices.extend(indices.iter().map(|i| i + offset));
             }
             CoordinateSystem::Unity => {
-                triangles_copy.reserve(indices.len());
+                self.indices.reserve(indices.len());
 
                 for triangle in indices.chunks(3) {
-                    triangles_copy.push(triangle[0]);
-                    triangles_copy.push(triangle[2]);
-                    triangles_copy.push(triangle[1]);
+                    self.indices.push(triangle[0] + offset);
+                    self.indices.push(triangle[2] + offset);
+                    self.indices.push(triangle[1] + offset);
                 }
             }
-        }
-
-        Self {
-            vertices: vertices_copy,
-            indices: triangles_copy,
         }
     }
 

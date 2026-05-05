@@ -41,8 +41,8 @@ namespace stilb
             {
                 coordinate_system = Bindings.CoordinateSystem.Unity,
                 is_preview = true,
-                preview_height = 512,
-                preview_width = 512,
+                preview_width = 1280,
+                preview_height = 720,
                 camera_position = camera.transform.position,
                 camera_forward = camera.transform.forward,
             };
@@ -94,14 +94,17 @@ namespace stilb
                 lightsData.Add(l);
             }
 
-            var meta = new MetaTexture((int)lightmapSettings.width);
-            var albedoAtlas = meta.CreateAtlas(staticRenderers, MetaTexture.AtlasType.Albedo);
-            var albedo = albedoAtlas.GetPixels32();
-            Editor.DestroyImmediate(albedoAtlas);
 
-            var emissionAtlas = meta.CreateAtlas(staticRenderers, MetaTexture.AtlasType.Emission);
-            var emission = emissionAtlas.GetPixels();
-            Editor.DestroyImmediate(emissionAtlas);
+            using var metaAlbedo = new MetaTexture((int)lightmapSettings.width, MetaTexture.AtlasType.Albedo);
+            using var metaEmission = new MetaTexture((int)lightmapSettings.width, MetaTexture.AtlasType.Emission);
+
+            var albedo = metaAlbedo
+                .CreateAtlas(staticRenderers, MetaTexture.AtlasType.Albedo)
+                .GetData<Color32>().ToArray();
+
+            var emission = metaEmission
+                .CreateAtlas(staticRenderers, MetaTexture.AtlasType.Emission)
+                .GetData<Color>().ToArray();
 
             var thread = new Thread(() =>
             {

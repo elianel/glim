@@ -9,10 +9,9 @@ namespace stilb
     public class MetaTexture : IDisposable
     {
         RenderTexture _rt;
-        RenderTexture _rtCopy;
 
         int _resolution;
-        public MetaTexture(int resolution)
+        public MetaTexture(int resolution, AtlasType type)
         {
             _resolution = resolution;
             var desc = new RenderTextureDescriptor
@@ -21,7 +20,7 @@ namespace stilb
                 width = resolution,
                 height = resolution,
                 useMipMap = false,
-                colorFormat = RenderTextureFormat.ARGBFloat,
+                colorFormat = type == AtlasType.Albedo ? RenderTextureFormat.ARGB32 : RenderTextureFormat.ARGBFloat,
                 sRGB = false,
                 volumeDepth = 1,
                 msaaSamples = 1,
@@ -29,7 +28,6 @@ namespace stilb
             };
 
             _rt = new RenderTexture(desc);
-            _rtCopy = new RenderTexture(desc);
         }
 
         public enum AtlasType
@@ -38,7 +36,7 @@ namespace stilb
             Emission,
         }
 
-        public Texture2D CreateAtlas(MeshRenderer[] renderers, AtlasType type)
+        public AsyncGPUReadbackRequest CreateAtlas(MeshRenderer[] renderers, AtlasType type)
         {
             using var cmd = new CommandBuffer();
             cmd.SetRenderTarget(_rt);
@@ -143,31 +141,11 @@ namespace stilb
             }
 
             Graphics.ExecuteCommandBuffer(cmd);
+            var format = type == AtlasType.Albedo ? TextureFormat.RGBA32 : TextureFormat.RGBAFloat;
 
-            var format = type == AtlasType.Albedo ? TextureFormat.ARGB32 : TextureFormat.RGBAFloat;
-            var tex = new Texture2D(_rt.width, _rt.height, format, false, true);
-
-            var finalRt = _rt;
-
-            RenderTexture.active = finalRt;
-            tex.ReadPixels(new Rect(0, 0, _rt.width, _rt.height), 0, 0);
-            tex.Apply(false);
-            RenderTexture.active = null;
-
-            return tex;
-
-            // if (type == AtlasType.Albedo)
-            // {
-            //     var bytes = tex.EncodeToTGA();
-            //     File.WriteAllBytes(Path.Combine(path, "albedo.tga"), bytes);
-            // }
-            // if (type == AtlasType.Emission)
-            // {
-            //     var bytes = tex.EncodeToEXR();
-            //     File.WriteAllBytes(Path.Combine(path, "emission.exr"), bytes);
-            // }
-
-            // Editor.DestroyImmediate(tex);
+            var request = AsyncGPUReadback.Request(_rt, 0, format);
+            request.WaitForCompletion();
+            return request;
         }
 
         public void Dispose()
@@ -176,10 +154,7 @@ namespace stilb
             {
                 Editor.DestroyImmediate(_rt);
             }
-            if (_rtCopy)
-            {
-                Editor.DestroyImmediate(_rtCopy);
-            }
+
         }
     }
 }
