@@ -91,7 +91,7 @@ namespace stilb
             _running = false;
         }
 
-        public static void Start(Bindings.StilbConfig config)
+        public static void Start(LightmapGroup globalGroup, Bindings.StilbConfig config)
         {
             if (_running)
             {
@@ -104,7 +104,7 @@ namespace stilb
             EditorApplication.update += CheckBakeComplete;
 
 
-            var ctx = new BakeContext();
+            var ctx = new BakeContext(globalGroup);
 
             _running = true;
 

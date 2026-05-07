@@ -62,7 +62,7 @@ namespace stilb
             return depth;
         }
 
-        public BakeContext()
+        public BakeContext(LightmapGroup bakerGlobalGroup)
         {
             var scene = SceneManager.GetActiveScene();
 
@@ -163,7 +163,7 @@ namespace stilb
                     unclaimedRenderers.Add(r);
                 }
             }
-            var globalGroup = ScriptableObject.CreateInstance<LightmapGroup>();
+            var globalGroup = bakerGlobalGroup == null ? ScriptableObject.CreateInstance<LightmapGroup>() : bakerGlobalGroup;
             if (unclaimedRenderers.Count > 0)
             {
                 groupMap[globalGroup] = unclaimedRenderers;
@@ -192,7 +192,10 @@ namespace stilb
                 throw new InvalidOperationException("No lightmap groups found.");
             }
 
-            ScriptableObject.DestroyImmediate(globalGroup);
+            if (!bakerGlobalGroup)
+            {
+                ScriptableObject.DestroyImmediate(globalGroup);
+            }
 
             Debug.Log($"Vertices: {sceneMesh.Sum(x => x.vertices.Length)}");
             Debug.Log($"Indices: {sceneMesh.Sum(x => x.triangles.Length)}");
