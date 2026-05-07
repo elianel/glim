@@ -1,20 +1,84 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using UnityEngine.UIElements;
 
 namespace stilb
 {
-    public class Preview
+    public class Bake
     {
-        public static void StartPreview(Bindings.StilbConfig config)
+        class ReadbackResult
         {
+            public Bindings.ReadbackData data;
+            public Color[] pixelsDiffuseCopy;
+        }
+
+        static List<ReadbackResult> _bakeResults = new();
+        static volatile bool _isComplete = false;
+        static volatile bool _running = false;
+
+        [AOT.MonoPInvokeCallback(typeof(Bindings.ReadbackCallback))]
+        public static void OnReadback(Bindings.ReadbackData data)
+        {
+            Debug.Log($"Received Group {data.group_index}: {data.width}x{data.height}");
+            var pixels = data.GetPixels();
+
+            _bakeResults.Add(new ReadbackResult()
+            {
+                data = data,
+                pixelsDiffuseCopy = pixels,
+            });
+        }
+
+        static void CheckBakeComplete()
+        {
+            if (!_isComplete)
+            {
+                return;
+            }
+
+            Debug.Log("Bake Complete");
+
+            foreach (var item in _bakeResults)
+            {
+                var data = item.data;
+
+                var texture = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, 1, false);
+                texture.SetPixels(item.pixelsDiffuseCopy);
+                var fileName = $"Diffuse{data.group_index}";
+                texture.name = fileName;
+
+                var assets = new UnityEngine.Object[] { texture };
+                InternalEditorUtility.SaveToSerializedFileAndForget(assets, $"Assets/{fileName}.asset", false);
+                // AssetDatabase.CreateAsset(texture, $"Assets/{fileName}.asset");
+            }
+
+            AssetDatabase.Refresh();
+
+
+            _bakeResults = new();
+            _isComplete = false;
+            _running = false;
+        }
+
+        public static void Start(Bindings.StilbConfig config)
+        {
+            if (_running)
+            {
+                Debug.LogError("Bake already running");
+                return;
+            }
+            _isComplete = false;
+            _bakeResults = new();
+            EditorApplication.update -= CheckBakeComplete;
+            EditorApplication.update += CheckBakeComplete;
+
+
             var ctx = new BakeContext();
 
+            _running = true;
 
             var thread = new Thread(() =>
             {
@@ -78,10 +142,12 @@ namespace stilb
                     Bindings.app_run(app);
 
                     Bindings.app_destroy(app);
-
+                    _running = false;
+                    _isComplete = true;
                 }
                 catch (Exception e)
                 {
+                    _running = false;
                     Debug.LogException(e);
                 }
             });

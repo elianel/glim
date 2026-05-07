@@ -32,6 +32,26 @@ namespace stilb
                 root.Add(nestedInspector);
             }
 
+            Button startBakeButton = new()
+            {
+                text = "Bake",
+                style =
+                {
+                    height = 25
+                }
+            };
+            startBakeButton.clicked += () =>
+            {
+                var config = new Bindings.StilbConfig
+                {
+                    callback = Bake.OnReadback,
+                    is_preview = false,
+                    coordinate_system = Bindings.CoordinateSystem.Unity,
+                };
+                Bake.Start(config);
+            };
+            root.Add(startBakeButton);
+
 
             _config = new Bindings.StilbConfig
             {
@@ -51,7 +71,7 @@ namespace stilb
 
             root.Add(new Label("<b>Preview Settings</b>") { style = { marginTop = 20 } });
 
-            Button startButton = new Button
+            Button startPreviewButton = new Button
             {
                 text = "Open Preview",
                 style =
@@ -59,13 +79,13 @@ namespace stilb
                     height = 25
                 }
             };
-            startButton.clicked += () =>
+            startPreviewButton.clicked += () =>
             {
                 var camera = SceneView.lastActiveSceneView.camera;
                 _config.camera_position = camera.transform.position;
                 _config.camera_forward = camera.transform.forward;
                 _config.preview_settings = _previewSettings;
-                Preview.StartPreview(_config);
+                Bake.Start(_config);
             };
 
             var width = new UnsignedIntegerField("Width") { value = _previewSettings.width };
@@ -88,7 +108,7 @@ namespace stilb
             throttle.RegisterValueChangedCallback(evt => _config.throttle_preview_ms = evt.newValue);
             root.Add(throttle);
 
-            root.Add(startButton);
+            root.Add(startPreviewButton);
 
             return root;
         }

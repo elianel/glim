@@ -38,10 +38,10 @@ namespace stilb
                 .GetData<Color>().ToArray();
 
 
-            // var albedoAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.ARGB32, 0, true);
+            // var albedoAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.ARGB32, 1, true);
             // albedoAtlas.SetPixels32(albedo);
             // AssetDatabase.CreateAsset(albedoAtlas, "Assets/AbledoAtlas.asset");
-            // var emissionAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.RGBAFloat, 0, true);
+            // var emissionAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.RGBAFloat, 1, true);
             // emissionAtlas.SetPixels(emission);
             // AssetDatabase.CreateAsset(emissionAtlas, "Assets/EmissionAtlas.asset");
 

@@ -25,6 +25,8 @@ namespace stilb
 
             public Vector3 camera_position;
             public Vector3 camera_forward;
+
+            public ReadbackCallback callback;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -91,6 +93,37 @@ namespace stilb
 
             public Vector3 color;
             public float shadow_radius_or_angle;
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void ReadbackCallback(ReadbackData data);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ReadbackData
+        {
+            public uint group_index;
+            public uint ty;
+            public uint width;
+            public uint height;
+            public IntPtr pixels;
+            public uint pixels_count;
+
+            public unsafe Color[] GetPixels()
+            {
+                if (pixels == IntPtr.Zero || pixels_count == 0)
+                    return Array.Empty<Color>();
+
+                int colorCount = (int)pixels_count / 4;
+                Color[] managedArray = new Color[colorCount];
+
+                fixed (Color* destPtr = managedArray)
+                {
+                    long byteCount = pixels_count * sizeof(float);
+                    Buffer.MemoryCopy((void*)pixels, destPtr, byteCount, byteCount);
+                }
+
+                return managedArray;
+            }
         }
     }
 }
