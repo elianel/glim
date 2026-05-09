@@ -212,20 +212,21 @@ namespace stilb
             }
 
             uint groupIndex = 0;
+            int mrDataOffset = 0;
             foreach (var (lightmapGroup, renderers) in groupMap)
             {
                 var rendererArray = renderers.ToArray();
 
                 var rendererDataIds = lda.FindProperty("m_LightmappedRendererDataIDs");
                 var rendererData = lda.FindProperty("m_LightmappedRendererData");
-                rendererDataIds.arraySize = rendererArray.Length;
-                rendererData.arraySize = rendererArray.Length;
+                rendererDataIds.arraySize += rendererArray.Length;
+                rendererData.arraySize += rendererArray.Length;
 
                 for (int i = 0; i < rendererArray.Length; i++)
                 {
                     MeshRenderer mr = rendererArray[i];
-                    var ids = rendererDataIds.GetArrayElementAtIndex(i);
-                    var lmData = rendererData.GetArrayElementAtIndex(i);
+                    var ids = rendererDataIds.GetArrayElementAtIndex(mrDataOffset + i);
+                    var lmData = rendererData.GetArrayElementAtIndex(mrDataOffset + i);
 
                     var soi = LightingData.ObjectToSOI(mr);
 
@@ -237,6 +238,8 @@ namespace stilb
                     lmData.FindPropertyRelative("lightmapIndex").intValue = (int)groupIndex;
                     lmData.FindPropertyRelative("lightmapST").vector4Value = new Vector4(1, 1, 0, 0);
                 }
+
+                mrDataOffset = rendererData.arraySize;
 
                 groups.Add(new BakeContextGroup(lightmapGroup, rendererArray));
                 sceneMesh.AddRange(Stilb.ExtractMeshData(rendererArray, groupIndex));
