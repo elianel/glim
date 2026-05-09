@@ -134,22 +134,29 @@ namespace stilb
             Debug.Assert(lightsOutputsProp != null);
 
             // todo
-            // lightsProp.arraySize = lightsArray.Length;
-            // lightsOutputsProp.arraySize = lightsArray.Length;
-            // for (int i = 0; i < lightsArray.Length; i++)
-            // {
-            //     var outputElement = lightsOutputsProp.GetArrayElementAtIndex(i);
-            //     var lightsElement = lightsProp.GetArrayElementAtIndex(i);
+            lightsProp.arraySize = lightsArray.Length;
+            lightsOutputsProp.arraySize = lightsArray.Length;
+            for (int i = 0; i < lightsArray.Length; i++)
+            {
+                var outputElement = lightsOutputsProp.GetArrayElementAtIndex(i);
+                var ids = lightsProp.GetArrayElementAtIndex(i);
 
-            //     outputElement.FindPropertyRelative("m_ProbeOcclusionLightIndex").intValue = -1;
-            //     outputElement.FindPropertyRelative("m_OcclusionMaskChannel").intValue = -1;
+                outputElement.FindPropertyRelative("probeOcclusionLightIndex").intValue = -1;
+                outputElement.FindPropertyRelative("occlusionMaskChannel").intValue = -1;
 
-            //     var mode = outputElement.FindPropertyRelative("m_LightmapBakeMode");
-            //     mode.FindPropertyRelative("m_LightmapBakeType").intValue = (int)LightmapBakeType.Baked;
-            //     mode.FindPropertyRelative("m_MixedLightingMode").intValue = (int)MixedLightingMode.Shadowmask;
+                var mode = outputElement.FindPropertyRelative("lightmapBakeMode");
+                mode.FindPropertyRelative("lightmapBakeType").intValue = (int)LightmapBakeType.Baked;
+                mode.FindPropertyRelative("mixedLightingMode").intValue = (int)MixedLightingMode.Shadowmask;
 
-            //     outputElement.FindPropertyRelative("m_IsBaked").boolValue = true;
-            // }
+                outputElement.FindPropertyRelative("isBaked").boolValue = true;
+
+                var soi = LightingData.ObjectToSOI(lightsArray[i]);
+
+                ids.Next(true);
+                ids.longValue = soi.MainLFID;
+                ids.Next(false);
+                ids.longValue = soi.PrefabLFID;
+            }
 
 
             var allSelectors = rootObjects
