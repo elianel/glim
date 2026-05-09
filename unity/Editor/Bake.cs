@@ -104,9 +104,7 @@ namespace stilb
                 }
 
 
-                // storage.lightmapDatas = lightmapDatas.ToList();
-                // storage. = LightmapsMode.NonDirectional;
-
+                lda.FindProperty("m_LightmapsMode").intValue = (int)LightmapsMode.NonDirectional;
 
                 var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
                 EditorSceneManager.MarkSceneDirty(_context.scene);

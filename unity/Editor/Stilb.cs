@@ -141,13 +141,12 @@ namespace stilb
                     var outputElement = lightsOutputsProp.GetArrayElementAtIndex(i);
                     var ids = lightsProp.GetArrayElementAtIndex(i);
 
-                    outputElement.FindPropertyRelative("probeOcclusionLightIndex").intValue = -1;
+                    outputElement.FindPropertyRelative("probeOcclusionLightIndex").intValue = 0;
                     outputElement.FindPropertyRelative("occlusionMaskChannel").intValue = -1;
 
                     var mode = outputElement.FindPropertyRelative("lightmapBakeMode");
                     mode.FindPropertyRelative("lightmapBakeType").intValue = (int)LightmapBakeType.Baked;
-                    mode.FindPropertyRelative("mixedLightingMode").intValue = (int)MixedLightingMode.IndirectOnly;
-
+                    mode.FindPropertyRelative("mixedLightingMode").intValue = (int)MixedLightingMode.Shadowmask;
 
                     outputElement.FindPropertyRelative("isBaked").boolValue = true;
 
