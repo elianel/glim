@@ -106,18 +106,23 @@ namespace stilb
             EditorSceneManager.SetActiveScene(targetScene);
             EditorSceneManager.CloseScene(tempScene, true);
 
-            string destPath = Path.Combine(Path.GetDirectoryName(scenePath), "LightingData.asset").Replace("\\", "/");
+            string ldaName = targetScene.name + " LightingData";
+
+            string destPath = Path.Combine(Path.GetDirectoryName(scenePath), $"{ldaName}.asset").Replace("\\", "/");
             AssetDatabase.CopyAsset(TempLightingDataPath, destPath);
             AssetDatabase.ImportAsset(destPath);
 
             var lightingDataAsset = AssetDatabase.LoadAssetAtPath<LightingDataAsset>(destPath);
             using var lda = new SerializedObject(lightingDataAsset);
+            InspectorModeObject.SetValue(lda, InspectorMode.DebugInternal);
 
             var sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(targetScene.path);
 
             var sceneProp = lda.FindProperty("m_Scene");
             Debug.Assert(sceneProp != null);
             sceneProp.objectReferenceValue = sceneAsset;
+
+            lda.FindProperty("m_Name").stringValue = ldaName;
 
             lda.ApplyModifiedPropertiesWithoutUndo();
 

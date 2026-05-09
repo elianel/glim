@@ -134,7 +134,6 @@ namespace stilb
                 Debug.Assert(lightsProp != null);
                 Debug.Assert(lightsOutputsProp != null);
 
-                // todo
                 lightsProp.arraySize = lightsArray.Length;
                 lightsOutputsProp.arraySize = lightsArray.Length;
                 for (int i = 0; i < lightsArray.Length; i++)
@@ -147,7 +146,8 @@ namespace stilb
 
                     var mode = outputElement.FindPropertyRelative("lightmapBakeMode");
                     mode.FindPropertyRelative("lightmapBakeType").intValue = (int)LightmapBakeType.Baked;
-                    mode.FindPropertyRelative("mixedLightingMode").intValue = (int)MixedLightingMode.Shadowmask;
+                    mode.FindPropertyRelative("mixedLightingMode").intValue = (int)MixedLightingMode.IndirectOnly;
+
 
                     outputElement.FindPropertyRelative("isBaked").boolValue = true;
 
@@ -240,7 +240,16 @@ namespace stilb
                         ids.longValue = soi.PrefabLFID;
 
                         lmData.FindPropertyRelative("lightmapIndex").intValue = (int)groupIndex;
-                        lmData.FindPropertyRelative("lightmapST").vector4Value = new Vector4(1, 1, 0, 0);
+                        var scaleOffset = new Vector4(1, 1, 0, 0);
+                        lmData.FindPropertyRelative("lightmapST").vector4Value = scaleOffset;
+                        lmData.FindPropertyRelative("lightmapSTDynamic").vector4Value = scaleOffset;
+
+                        // lmData.FindPropertyRelative("uvMesh");
+                        lmData.FindPropertyRelative("terrainDynamicUVST").vector4Value = scaleOffset;
+                        lmData.FindPropertyRelative("terrainChunkDynamicUVST").vector4Value = scaleOffset;
+
+                        lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = -1;
+
                     }
 
                     mrDataOffset = rendererData.arraySize;
