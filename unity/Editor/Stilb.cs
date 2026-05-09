@@ -247,7 +247,7 @@ namespace stilb
                         lmData.FindPropertyRelative("terrainDynamicUVST").vector4Value = scaleOffset;
                         lmData.FindPropertyRelative("terrainChunkDynamicUVST").vector4Value = scaleOffset;
 
-                        lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = -1;
+                        lmData.FindPropertyRelative("lightmapIndexDynamic").intValue = 65535;
 
                     }
 
