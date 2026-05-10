@@ -1,0 +1,11 @@
+# Todo
+- [ ] Export light probe positions and bake
+- [ ] Spot lights
+- [ ] Spot light cookie with default unity cookie
+- [ ] Area lights
+- [ ] OIDN2 bindings and apply denoise
+- [ ] Proper sync for bake loop
+- [ ] Better panic handling
+- [ ] Return codes for bake success, fail, cancel
+- [ ] Log callback
+- [ ] Stop closing and opening the scene twice

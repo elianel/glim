@@ -107,17 +107,28 @@ namespace stilb
                 lda.FindProperty("m_LightmapsMode").intValue = (int)LightmapsMode.NonDirectional;
 
                 var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
-                EditorSceneManager.MarkSceneDirty(_context.scene);
+
                 lda.ApplyModifiedPropertiesWithoutUndo();
+                string ldaName = _context.scene.name + " LightingData";
 
+                // move 
+                string destPath = Path.Combine(Path.GetDirectoryName(scenePath), $"{ldaName}.asset").Replace("\\", "/");
+                AssetDatabase.MoveAsset(LightingData.TempLightingDataPath, destPath);
+                AssetDatabase.DeleteAsset(LightingData.TempLightingDataPath);
 
+                // apply new asset
+                Lightmapping.lightingDataAsset = AssetDatabase.LoadAssetAtPath<LightingDataAsset>(destPath);
+                using var lda2 = new SerializedObject(Lightmapping.lightingDataAsset);
+                lda2.FindProperty("m_Name").stringValue = ldaName;
+                lda2.ApplyModifiedPropertiesWithoutUndo();
                 EditorSceneManager.SaveScene(_context.scene);
+                EditorSceneManager.MarkSceneDirty(_context.scene);
 
                 // cursed
-                Scene tempScene = EditorSceneManager.OpenScene(LightingData.TempScenePath, OpenSceneMode.Additive);
-                EditorSceneManager.CloseScene(_context.scene, false);
-                EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
-                EditorSceneManager.CloseScene(tempScene, true);
+                // Scene tempScene = EditorSceneManager.OpenScene(LightingData.TempScenePath, OpenSceneMode.Additive);
+                // EditorSceneManager.CloseScene(_context.scene, false);
+                // EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                // EditorSceneManager.CloseScene(tempScene, true);
             }
             finally
             {
