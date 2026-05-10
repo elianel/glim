@@ -114,8 +114,6 @@ void main(uint3 threadID: SV_DispatchThreadID)
     uint sampleCount = Push.maxSamples;
     uint bounceCount = Push.bounceCount;
 
-    float2 hammersley = Hammersley(sampleIndex, sampleCount);
-
     if (USE_CAMERA > 0)
     {
         float3 emission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
@@ -131,15 +129,17 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     uint lightCount = Push.lightCount;
 
+    uint pixelSeed = HashPcg3d(uint3(coords, 0)).x;
+
     // direct light
-    float2 xiLight = Scramble(hammersley, coords, 0, sampleIndex);
+    float2 xiLight = OwenHammersley(sampleIndex, sampleCount, 0, pixelSeed);
 
     for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
     {
         color += ShadeLight(Push.lights[lightIndex], surface, xiLight) * throughput;
     }
 
-    float2 xiBounce0 = Scramble(hammersley, coords, 1, sampleIndex);
+    float2 xiBounce0 = OwenHammersley(sampleIndex, sampleCount, 1, pixelSeed);
 
     Ray bounceRay;
     bounceRay.P = RayOffset(surface.P, surface.Ng);
@@ -170,14 +170,13 @@ void main(uint3 threadID: SV_DispatchThreadID)
             throughput *= bounceAlbedo;
 
             uint dimOffset = (bounceIndex + 1) * 2;
-            float2 xiLight = Scramble(hammersley, coords, dimOffset, sampleIndex);
+            float2 xiLight  = OwenHammersley(sampleIndex, sampleCount, dimOffset,     pixelSeed);
+            float2 xiBounce = OwenHammersley(sampleIndex, sampleCount, dimOffset + 1, pixelSeed);
 
             for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
             {
                 color += ShadeLight(Push.lights[lightIndex], surfaceBounce, xiLight) * throughput;
             }
-
-            float2 xiBounce = Scramble(hammersley, coords, dimOffset + 1, sampleIndex);
 
             bounceRay.P = RayOffset(surfaceBounce.P, surfaceBounce.Ng);
             bounceRay.D = RandomDirectionInHemisphere(surfaceBounce.N, xiBounce);

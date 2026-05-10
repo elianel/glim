@@ -135,20 +135,6 @@ float3 RayOffset(float3 P, float3 Ng)
         abs(P.z) < origin ? P.z + floatScale * Ng.z : p_i.z);
 }
 
-float2 Hammersley(uint i, uint N)
-{
-    // radical inverse (Van der Corput) in base 2
-    uint bits = i;
-    bits = (bits << 16u) | (bits >> 16u);
-    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-    float radicalInverse = float(bits) * 2.3283064365386963e-10; // / 2^32
-
-    return float2(float(i) / float(N), radicalInverse);
-}
-
 float3 RandomPointOnSphere(float3 center, float radius, float2 xi)
 {
     float z = 1.0 - 2.0 * xi.x;
@@ -172,11 +158,27 @@ uint3 HashPcg3d(uint3 v)
     return v;
 }
 
-float2 Scramble(float2 h, uint2 coords, uint dimension, uint frame)
+float OwenScrambledRadicalInverse(uint sampleIndex, uint seed)
 {
-    uint3 v = HashPcg3d(uint3(coords, dimension ^ (frame * 2971215073u)));
-    float2 shift = float2(v.xy) * (1.0 / 4294967295.0);
-    return frac(h + shift);
+    uint v = sampleIndex;
+    v ^= v * 0x3d20adeau;
+    v += seed;
+    v *= (seed >> 16) | 1u;
+    v ^= v * 0x05526c56u;
+    v ^= v * 0x53a22864u;
+    return float(reversebits(v)) * 2.3283064365386963e-10;
+}
+
+float2 OwenHammersley(uint sampleIndex, uint sampleCount, uint dimension, uint pixelSeed)
+{
+    uint seed0 = HashPcg3d(uint3(pixelSeed, dimension * 2,     0)).x;
+    uint seed1 = HashPcg3d(uint3(pixelSeed, dimension * 2 + 1, 0)).x;
+
+    float xi0 = frac(float(sampleIndex) / float(sampleCount)
+                     + float(seed0) * 2.3283064365386963e-10);
+    float xi1 = OwenScrambledRadicalInverse(sampleIndex, seed1);
+
+    return float2(xi0, xi1);
 }
 
 float3 RandomDirectionInHemisphere(float3 normal, float2 rand)
