@@ -71,6 +71,7 @@ namespace stilb
                     string path;
                     if (groupAsset.format == LightmapSaveFormat.EXR)
                     {
+                        // todo disable mip maps and change other import settings
                         path = Path.Combine(sceneDirectory, $"{fileName}.exr");
                         var bytes = diffuseTex.EncodeToEXR(groupAsset.exrFlags);
                         File.WriteAllBytes(path, bytes);

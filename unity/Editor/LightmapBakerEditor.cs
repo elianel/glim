@@ -1,5 +1,8 @@
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEditor.SearchService;
 using UnityEditor.UIElements;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace stilb
@@ -51,6 +54,21 @@ namespace stilb
                 Bake.Start(baker, config);
             };
             root.Add(startBakeButton);
+
+            Button clearButton = new()
+            {
+                text = "Clear Lighting Data",
+                style =
+                {
+                    height = 25
+                }
+            };
+            clearButton.clicked += () =>
+            {
+                Lightmapping.lightingDataAsset = null;
+                EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            };
+            root.Add(clearButton);
 
 
             _config = new Bindings.StilbConfig
