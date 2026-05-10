@@ -77,18 +77,17 @@ namespace stilb
 
             cmd.SetGlobalVector("unity_MetaVertexControl", new Vector4(1, 0, 0, 0));
             cmd.SetGlobalFloat("unity_OneOverOutputBoost", 1.0f);
-            cmd.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
-
-            // todo figure out if 0 or 1
             cmd.SetGlobalFloat("unity_UseLinearSpace", 1.0f);
 
             if (type == AtlasType.Albedo)
             {
                 cmd.SetGlobalVector("unity_MetaFragmentControl", new Vector4(1, 0, 0, 0));
+                cmd.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
             }
             else if (type == AtlasType.Emission)
             {
                 cmd.SetGlobalVector("unity_MetaFragmentControl", new Vector4(0, 1, 0, 0));
+                cmd.SetGlobalFloat("unity_MaxOutputValue", 100.0f);
             }
 
             cmd.SetGlobalFloat("unity_VisualizationMode", -1);
@@ -138,6 +137,11 @@ namespace stilb
                 {
                     var renderer = renderers[rendererIndex];
                     var mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
+
+                    if (!mesh)
+                    {
+                        continue;
+                    }
 
                     // TODO: TEMP
                     renderer.lightmapScaleOffset = new Vector4(1, 1, 0, 0);

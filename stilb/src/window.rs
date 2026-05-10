@@ -146,6 +146,14 @@ pub fn update_camera(app: &mut Stilb, delta_time: f32) {
         if camera_moved {
             camera.position = camera.position + direction.normalize() * move_speed;
         }
+
+        if glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS {
+            println!(
+                "Camera Forward: {:#?} Camera Position: {:#?}",
+                camera.get_forward(),
+                camera.position
+            );
+        }
     }
 
     if camera_moved {

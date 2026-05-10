@@ -36,4 +36,10 @@ impl Camera {
         self.pitch = dir.y.asin();
         self.yaw = dir.x.atan2(dir.z);
     }
+
+    pub fn get_forward(&self) -> Vector3 {
+        let (sin_yaw, cos_yaw) = self.yaw.sin_cos();
+        let (sin_pitch, cos_pitch) = self.pitch.sin_cos();
+        Vector3::new(cos_pitch * sin_yaw, sin_pitch, cos_pitch * cos_yaw)
+    }
 }

@@ -360,14 +360,26 @@ mod tests {
             denoise: false,
         };
 
-        let config = StilbConfig {
+        let mut config = StilbConfig {
             coordinate_system: CoordinateSystem::Default,
-            is_preview: false,
+            is_preview: true,
             camera_position: Vector3::new(0.0, 0.0, 5.0),
             camera_forward: Vector3::FORWARD,
             preview_settings,
-            throttle_preview_ms: 10,
+            throttle_preview_ms: 5,
             callback: test_save_callback,
+        };
+
+        config.camera_forward = Vector3 {
+            x: -0.42446527,
+            y: -0.4595601,
+            z: -0.7801498,
+        };
+
+        config.camera_position = Vector3 {
+            x: 1.890761,
+            y: 0.4439021,
+            z: 1.685063,
         };
 
         let app = app_new(config);
@@ -380,21 +392,23 @@ mod tests {
                 let app = unsafe { &mut *app };
                 app.cpu_mesh.merge_mesh(&mesh);
             }
-            app_add_light(
-                app,
-                Light {
-                    ty: LightType::Point,
-                    position: Vector3 {
-                        x: 0.0 + offset,
-                        y: 1.0,
-                        z: 0.0,
-                    },
-                    direction: Vector3::ZERO,
-                    range: 5.0,
-                    color: Vector3::new(1.0, 1.0, 1.0) * 1.0,
-                    shadow_radius_or_angle: 0.01,
-                },
-            );
+
+            // app_add_light(
+            //     app,
+            //     Light {
+            //         ty: LightType::Point,
+            //         position: Vector3 {
+            //             x: 0.0 + offset,
+            //             y: 1.0,
+            //             z: 0.0,
+            //         },
+            //         direction: Vector3::ZERO,
+            //         range: 5.0,
+            //         color: Vector3::new(1.0, 1.0, 1.0) * 1.0,
+            //         shadow_radius_or_angle: 0.01,
+            //     },
+            // );
+
             offset += 5.0;
             for m in &mut mesh.vertices {
                 m.position.x += 5.0;
