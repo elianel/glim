@@ -113,15 +113,18 @@ namespace stilb
 
                 // move 
                 string destPath = Path.Combine(Path.GetDirectoryName(scenePath), $"{ldaName}.asset").Replace("\\", "/");
+                if (AssetDatabase.LoadMainAssetAtPath(destPath) != null)
+                {
+                    AssetDatabase.DeleteAsset(destPath);
+                }
                 AssetDatabase.MoveAsset(LightingData.TempLightingDataPath, destPath);
-                AssetDatabase.DeleteAsset(LightingData.TempLightingDataPath);
 
                 // apply new asset
-                Lightmapping.lightingDataAsset = AssetDatabase.LoadAssetAtPath<LightingDataAsset>(destPath);
-                using var lda2 = new SerializedObject(Lightmapping.lightingDataAsset);
+                var newLda = AssetDatabase.LoadAssetAtPath<LightingDataAsset>(destPath);
+                using var lda2 = new SerializedObject(newLda);
                 lda2.FindProperty("m_Name").stringValue = ldaName;
                 lda2.ApplyModifiedPropertiesWithoutUndo();
-                EditorSceneManager.SaveScene(_context.scene);
+                Lightmapping.lightingDataAsset = newLda;
                 EditorSceneManager.MarkSceneDirty(_context.scene);
 
                 // cursed

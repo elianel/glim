@@ -100,17 +100,12 @@ namespace stilb
             {
                 Object.DestroyImmediate(obj);
             }
+            Lightmapping.lightingDataAsset = null;
             EditorSceneManager.SaveScene(tempScene);
 
             targetScene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
             EditorSceneManager.SetActiveScene(targetScene);
             EditorSceneManager.CloseScene(tempScene, true);
-
-            string ldaName = targetScene.name + " LightingData";
-
-            // string destPath = Path.Combine(Path.GetDirectoryName(scenePath), $"{ldaName}.asset").Replace("\\", "/");
-            // AssetDatabase.CopyAsset(TempLightingDataPath, destPath);
-            // AssetDatabase.ImportAsset(destPath);
 
             var lightingDataAsset = AssetDatabase.LoadAssetAtPath<LightingDataAsset>(TempLightingDataPath);
             using var lda = new SerializedObject(lightingDataAsset);
