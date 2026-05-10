@@ -9,3 +9,9 @@
 - [ ] Return codes for bake success, fail, cancel
 - [ ] Log callback
 - [ ] Stop closing and opening the scene twice
+- [ ] Alpha test
+- [ ] Add support for CWBVH
+- [ ] Double sided global illumination
+- [ ] Seam stiching
+- [ ] UV Packing with scale offset
+- [ ] UV Packing per chart

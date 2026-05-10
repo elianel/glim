@@ -57,18 +57,29 @@ namespace stilb
                 var scenePath = _context.scene.path;
                 string sceneDirectory = Path.GetDirectoryName(scenePath);
 
-                foreach (var item in _bakeResults)
+                foreach (var result in _bakeResults)
                 {
-                    var data = item.data;
+                    var data = result.data;
+                    var groupAsset = _context.groups[(int)data.group_index].groupAsset;
 
                     var diffuseTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, 1, false);
-                    diffuseTex.SetPixels(item.pixelsDiffuseCopy);
+                    diffuseTex.SetPixels(result.pixelsDiffuseCopy);
                     var fileName = $"{_context.scene.name} LightmapDiffuse_{data.group_index}";
                     diffuseTex.name = fileName;
 
                     var assets = new UnityEngine.Object[] { diffuseTex };
-                    var path = Path.Combine(sceneDirectory, $"{fileName}.asset");
-                    InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
+                    string path;
+                    if (groupAsset.format == LightmapSaveFormat.EXR)
+                    {
+                        path = Path.Combine(sceneDirectory, $"{fileName}.exr");
+                        var bytes = diffuseTex.EncodeToEXR(groupAsset.exrFlags);
+                        File.WriteAllBytes(path, bytes);
+                    }
+                    else // asset
+                    {
+                        path = Path.Combine(sceneDirectory, $"{fileName}.asset");
+                        InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
+                    }
                     // AssetDatabase.CreateAsset(texture, $"Assets/{fileName}.asset");
 
 
@@ -128,6 +139,7 @@ namespace stilb
                 EditorSceneManager.MarkSceneDirty(_context.scene);
 
                 // cursed
+                // EditorSceneManager.SaveScene(_context.scene);
                 // Scene tempScene = EditorSceneManager.OpenScene(LightingData.TempScenePath, OpenSceneMode.Additive);
                 // EditorSceneManager.CloseScene(_context.scene, false);
                 // EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
@@ -219,8 +231,8 @@ namespace stilb
                                 );
                             }
                         }
+                        group.ClearPixels();
                     }
-                    ctx.groups = new();
 
                     Bindings.app_run(app);
 

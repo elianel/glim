@@ -13,9 +13,12 @@ namespace stilb
         public Color32[] albedo;
         public Color[] emission;
         public Bindings.LightmapSettings settings;
+        public LightmapGroup groupAsset;
 
         public BakeContextGroup(LightmapGroup group, IList<Renderer> renderers)
         {
+            groupAsset = group;
+
             settings = new Bindings.LightmapSettings
             {
                 width = group.resolution,
@@ -45,6 +48,12 @@ namespace stilb
             // AssetDatabase.CreateAsset(emissionAtlas, "Assets/EmissionAtlas.asset");
 
             Debug.Log($"Group width: {settings.width}, height:{settings.height}");
+        }
+
+        public void ClearPixels()
+        {
+            albedo = new Color32[0];
+            emission = new Color[0];
         }
     }
 
