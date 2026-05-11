@@ -509,9 +509,11 @@ fn bake_lightmaps(app: &mut Stilb) {
                 }
 
                 if app.config.throttle_preview_ms > 0 {
-                    std::thread::sleep(Duration::from_millis(
-                        app.config.throttle_preview_ms as u64,
-                    ));
+                    let target_duration_secs = app.config.throttle_preview_ms as f32 / 1000.0;
+                    let sleep_duration = target_duration_secs - delta_time;
+                    if sleep_duration > 0.0 {
+                        std::thread::sleep(Duration::from_secs_f32(sleep_duration));
+                    }
                 }
 
                 previous_time = now;
