@@ -6,7 +6,7 @@ use crate::math::Vector3;
 #[derive(Debug, Copy, Clone)]
 pub struct SHProbe {
     pub l0: Vector3,
-    pub sample_count: u32,
+    pub pad0: u32,
 
     pub l1x: Vector3,
     pub position_x: f32,
@@ -23,12 +23,8 @@ const SH_L1_NORMALIZATION: f32 = 0.488602511902919921586384622838347004575885608
 
 impl SHProbe {
     #[inline]
-    pub fn normalize(&mut self) {
-        if self.sample_count == 0 {
-            return;
-        }
-
-        let inv_samples = 1.0 / (self.sample_count as f32);
+    pub fn normalize(&mut self, samples: u32) {
+        let inv_samples = 1.0 / (samples as f32);
 
         self.l0 = self.l0 * (inv_samples * SH_L0_NORMALIZATION);
 

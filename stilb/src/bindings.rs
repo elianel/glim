@@ -67,12 +67,15 @@ pub extern "C" fn app_run(app: *mut Stilb) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_add_probe(app: *mut Stilb, position: Vector3) {
+pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3) {
     let app = unsafe { &mut *app };
+
+    let system = app.config.coordinate_system;
+    position.transform_space(system);
 
     let probe = SHProbe {
         l0: Vector3::ZERO,
-        sample_count: 0,
+        pad0: 0,
         l1x: Vector3::ZERO,
         position_x: position.x,
         l1y: Vector3::ZERO,

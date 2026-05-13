@@ -656,8 +656,8 @@ fn bake_lightmaps(app: &mut Stilb) {
         );
 
         // todo config
-        let probes_samples = 32;
-        let probe_bounces = 5;
+        let probes_samples = 256;
+        let probe_bounces = 1;
         initialize_bake_sh_push_constants(app, probes_samples, probe_bounces);
 
         loop {
@@ -678,7 +678,7 @@ fn bake_lightmaps(app: &mut Stilb) {
             .download_buffer(app.probes_buffer.buffer, &mut app.probes);
 
         for probe in &mut app.probes {
-            probe.normalize();
+            probe.normalize(probes_samples);
         }
         let readback_data = ReadbackProbesData {
             probes: app.probes.as_ptr(),

@@ -104,7 +104,7 @@ namespace stilb
         public struct SHProbe
         {
             public Vector3 l0;
-            public uint sample_count;
+            public uint pad0;
 
             public Vector3 l1x;
             public float position_x;
