@@ -4,8 +4,6 @@
 [[vk::push_constant]]
 PushConstants Push;
 
-[vk::constant_id(0)] const uint USE_CAMERA;
-
 struct PushConstants
 {
     Vertex *vertices;
@@ -16,15 +14,10 @@ struct PushConstants
     uint maxSamples;
 
     uint sampleIndex;
-    uint width;
-    uint height;
+    uint probeCount;
+    uint pad0;
     uint bounceCount;
 };
-
-float Luminance(float3 rgb)
-{
-    return dot(rgb, float3(0.2126, 0.7152, 0.0722));
-}
 
 void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi, float3 throughput)
 {
@@ -78,82 +71,42 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 }
 
 [shader("compute")]
-    [numthreads(8, 8, 1)] void
+    [numthreads(64, 1, 1)] void
     main(uint3 threadID : SV_DispatchThreadID)
 {
-    uint2 coords = threadID.xy;
-    uint2 resolution = uint2(Push.width, Push.height);
+    uint probeIndex = threadID.x;
 
-    if (coords.x >= resolution.x || coords.y >= resolution.y)
+    if (probeIndex >= Push.probeCount)
     {
         return;
     }
+
+    SHProbe probe = SHProbes[probeIndex];
+    float3 probePosition = float3(probe.positionX, probe.positionY, probe.positionZ);
 
     Spectrum spectrum = SpectrumZero();
     float3 throughput = float3(1.0);
 
-    float4 visibility = VisibilityBuffer[coords];
-
-    uint encoded = asuint(visibility.a);
-
-    if (encoded == 0)
-    {
-        return;
-    }
-
-    uint primitiveID = asuint(visibility.z);
-    float2 bary = visibility.xy;
-    bool useSmoothP = (encoded & (1 << 1)) != 0;
-
-    Surface surface = Surface::Get(Push.indices, Push.vertices, primitiveID, bary);
-
+    // todo backface gi
+    bool backfaceGI = false;
     uint sampleIndex = Push.sampleIndex;
     uint sampleCount = Push.maxSamples;
     uint bounceCount = Push.bounceCount;
-
-    uint pixelSeed = HashPcg3d(coords.xyy).x;
+    uint lightCount = Push.lightCount;
+    uint dimension = 0;
     // todo set constant
     uint shuffledIndexMask = reversebits(NextPowerOfTwo(sampleCount - 1) - 1);
     // uint shuffledIndexMask = ~0u;
 
-    if (USE_CAMERA > 0)
-    {
-        float3 emission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-        float3 albedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-        spectrum.color += emission;
-        throughput = albedo;
-    }
-
-    if (useSmoothP)
-    {
-        surface.P = surface.smoothP;
-    }
-
-    uint lightCount = Push.lightCount;
-
-    // direct light
-    uint dimension = 0;
-    float2 xiLight = SobolBurleySample2D(sampleIndex, dimension++, pixelSeed, shuffledIndexMask);
-
-    for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
-    {
-        ShadeLight(spectrum, Push.lights[lightIndex], surface, xiLight, throughput);
-    }
+    uint pixelSeed = HashPcg3d(probeIndex.xxx).x;
 
     float2 xiBounce0 = SobolBurleySample2D(sampleIndex, dimension++, pixelSeed, shuffledIndexMask);
 
     Ray bounceRay;
-    bounceRay.P = RayOffset(surface.P, surface.Ng);
-    bounceRay.D = RandomDirectionInHemisphere(surface.N, xiBounce0);
+    bounceRay.P = probePosition;
+    bounceRay.D = RandomDirectionSphere(xiBounce0);
     bounceRay.tMin = 0;
     bounceRay.tMax = RAY_MAX;
-
-    // todo backface gi
-    bool backfaceGI = false;
-
-    // todo:
-    // fix emission and light bounce count mismatch
-    // emissions have bounceCount-1 bounces
 
     // bounces
     for (uint bounceIndex = 0; bounceIndex < bounceCount; bounceIndex++)
@@ -198,5 +151,5 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         }
     }
 
-    AccumulateColor(LightmapDiffuse, coords, sampleIndex, float4(spectrum.color, 0));
+    AccumulateSH(SHProbes, probeIndex, spectrum);
 }

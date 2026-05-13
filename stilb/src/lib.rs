@@ -8,7 +8,9 @@ use glfw_sys::{
 };
 
 use crate::buffer::Buffer;
+use crate::compute_shader::{BakeSHPushConstants, load_bake_sh_shader, update_bake_sh_shader};
 use crate::lights::light_buffer_flags;
+use crate::sh::SHProbe;
 use crate::{
     camera::Camera,
     compute_shader::{
@@ -48,7 +50,6 @@ pub struct Stilb {
     pub vk: VulkanContext,
     pub window: *mut GLFWwindow,
 
-    // pub group_settings: Vec<LightmapSettings>,
     pub cpu_mesh: Mesh,
     pub cpu_lights: Vec<Light>,
     pub groups: Vec<LightmapGroup>,
@@ -61,12 +62,16 @@ pub struct Stilb {
 
     pub bake_shader: ComputeShader,
     pub init_from_camera_shader: ComputeShader,
-    // pub bake_init_shader: ComputeShader,
     pub preview_initialized: bool,
 
     pub sampler_linear_clamp: vk::Sampler,
 
     pub push: BakePushConstants,
+
+    pub probes: Vec<SHProbe>,
+    pub push_probes: BakeSHPushConstants,
+    pub probes_buffer: Buffer,
+    pub bake_probes_shader: ComputeShader,
 
     pub render_target: RenderTarget,
 }
@@ -357,6 +362,16 @@ fn start_bake(app: &mut Stilb) {
     app.bake_shader =
         load_bake_lights_shader(&app.vk, app.config.is_preview, app.groups.len() as u32);
 
+    if app.probes.len() > 0 {
+        app.bake_probes_shader = load_bake_sh_shader(&app.vk, app.groups.len() as u32);
+
+        let flags = vk::BufferUsageFlags::TRANSFER_DST
+            | vk::BufferUsageFlags::STORAGE_BUFFER
+            | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS;
+
+        app.probes_buffer = Buffer::new(&app.vk, &app.probes, flags);
+    }
+
     // upload lights
     if app.cpu_lights.len() > 0 {
         let gpu_lights = Buffer::new(&app.vk, &app.cpu_lights, light_buffer_flags());
@@ -402,6 +417,20 @@ fn initialize_bake_push_constants(
         height: height,
         max_samples,
         bounce_count,
+    };
+}
+
+fn initialize_bake_sh_push_constants(app: &mut Stilb, max_samples: u32, bounce_count: u32) {
+    app.push_probes = BakeSHPushConstants {
+        vertices: app.gpu_mesh.vertex_buffer.address,
+        indices: app.gpu_mesh.index_buffer.address,
+        lights: app.gpu_lights.address,
+        lights_count: app.cpu_lights.len() as u32,
+        sample_index: 0,
+        max_samples,
+        bounce_count,
+        probes_count: app.probes.len() as u32,
+        pad0: 0,
     };
 }
 
@@ -605,6 +634,37 @@ fn bake_lightmaps(app: &mut Stilb) {
         }
     }
 
+    // todo implement probe SH baking
+    if app.probes.len() > 0 {
+        update_bake_sh_shader(
+            &app.vk,
+            &app.bake_probes_shader,
+            app.tlas.acceleration_structure(),
+            app.probes_buffer.buffer,
+            &albedos,
+            &emissions,
+            app.sampler_linear_clamp,
+        );
+
+        // todo config
+        let probes_samples = 32;
+        let probe_bounces = 5;
+        initialize_bake_sh_push_constants(app, probes_samples, probe_bounces);
+
+        loop {
+            render_sample_bake_probes(app);
+            if app.push_probes.sample_index >= probes_samples {
+                break;
+            }
+        }
+
+        println!("light probes baked");
+
+        unsafe {
+            app.vk.device.device_wait_idle().unwrap();
+        }
+    }
+
     unsafe {
         app.vk.device.device_wait_idle().unwrap();
     }
@@ -670,6 +730,67 @@ fn render_sample_bake(app: &mut Stilb, settings: &LightmapSettings) {
 
         vk.queue_wait_idle(app.vk.compute_queue).unwrap()
     };
+}
+
+fn render_sample_bake_probes(app: &mut Stilb) {
+    let vk = &app.vk.device;
+
+    let cmd = app.vk.command_buffer;
+
+    let begin_info = vk::CommandBufferBeginInfo {
+        flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+        ..Default::default()
+    };
+
+    let shader = &app.bake_probes_shader;
+
+    let probes_count = app.probes.len() as u32;
+
+    let groups_x = (probes_count + 63) / 64;
+
+    let constants_bytes = as_bytes(&app.push_probes);
+
+    unsafe {
+        vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+            .unwrap();
+
+        vk.begin_command_buffer(cmd, &begin_info).unwrap();
+
+        vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+        vk.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::COMPUTE,
+            shader.pipeline_layout,
+            0,
+            &[shader.descriptor_set],
+            &[],
+        );
+
+        vk.cmd_push_constants(
+            cmd,
+            shader.pipeline_layout,
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &constants_bytes,
+        );
+
+        vk.cmd_dispatch(cmd, groups_x, 1, 1);
+
+        let vk = &app.vk.device;
+
+        let cmds = [cmd];
+        let submit = vk::SubmitInfo::default().command_buffers(&cmds);
+
+        vk.end_command_buffer(cmd).unwrap();
+
+        vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
+            .unwrap();
+
+        vk.queue_wait_idle(app.vk.compute_queue).unwrap()
+    };
+
+    app.push_probes.sample_index += 1;
 }
 
 fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
@@ -1183,6 +1304,18 @@ impl Stilb {
             bounce_count: 0,
         };
 
+        let push_probes = BakeSHPushConstants {
+            vertices: 0,
+            indices: 0,
+            lights: 0,
+            lights_count: 0,
+            sample_index: 0,
+            max_samples: 0,
+            bounce_count: 0,
+            probes_count: 0,
+            pad0: 0,
+        };
+
         let cpu_mesh = Mesh {
             vertices: Vec::new(),
             indices: Vec::new(),
@@ -1205,6 +1338,10 @@ impl Stilb {
             sampler_linear_clamp,
             push,
             render_target: RenderTarget::None,
+            probes: Vec::new(),
+            probes_buffer: Buffer::null(),
+            bake_probes_shader: ComputeShader::null(),
+            push_probes,
         }
     }
 }

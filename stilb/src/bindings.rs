@@ -95,6 +95,10 @@ pub extern "C" fn app_destroy(app: *mut Stilb) {
             app.gpu_lights.destroy(&app.vk);
         }
 
+        if !app.bake_probes_shader.pipeline.is_null() {
+            app.bake_probes_shader.destroy(&app.vk);
+        }
+
         unsafe {
             app.vk
                 .device

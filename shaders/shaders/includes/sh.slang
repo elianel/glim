@@ -15,13 +15,3 @@ struct SHProbe
     float3 L1z;
     float positionZ;
 };
-
-void AccumulateSH_L1(RWStructuredBuffer<SHProbe> buffer, uint probeIndex, float3 radiance, float3 dir)
-{
-    buffer[probeIndex].L0.xyz += SH_L0_NORM * radiance;
-    buffer[probeIndex].sampleCount += 1.0;
-
-    buffer[probeIndex].L1x.xyz += SH_L1_NORM * radiance * dir.x;
-    buffer[probeIndex].L1y.xyz += SH_L1_NORM * radiance * dir.y;
-    buffer[probeIndex].L1z.xyz += SH_L1_NORM * radiance * dir.z;
-}

@@ -48,6 +48,12 @@ fn main() {
     });
 
     shaders.push(Shader {
+        ty: ShaderType::Compute,
+        src: "bake_sh.slang".into(),
+        dst: "bake_sh.spv".into(),
+    });
+
+    shaders.push(Shader {
         ty: ShaderType::Vertex,
         src: "init_from_bake.slang".into(),
         dst: "init_from_bake_vertex.spv".into(),

@@ -173,47 +173,14 @@ uint3 HashPcg3d(uint3 v)
     return v;
 }
 
-float2 Scramble(float2 h, uint2 coords, uint dimension, uint frame)
+float3 RandomDirectionSphere(float2 xi)
 {
-    uint3 v = HashPcg3d(uint3(coords, dimension ^ (frame * 2971215073u)));
-    float2 shift = float2(v.xy) * (1.0 / 4294967295.0);
-    return frac(h + shift);
-}
+    float z = 1.0 - 2.0 * xi.x;
+    float phi = 2.0 * float.getPi() * xi.y;
 
-uint OwenHash(uint x, uint seed)
-{
-    x ^= x * 0x3d20adeau;
-    x += seed;
-    x *= (seed >> 16) | 1u;
-    x ^= x * 0x05526c56u;
-    x ^= x * 0x53a22864u;
-    return x;
-}
+    float r = sqrt(saturate(1.0 - z * z));
 
-float OwenScrambledRadicalInverse(uint sampleIndex, uint seed)
-{
-    uint bits = reversebits(sampleIndex);
-    bits = OwenHash(bits, seed);
-    return float(bits) * 2.3283064365386963e-10; // / 2^32
-}
-
-float2 OwenHammersley(uint sampleIndex, uint sampleCount, uint dimension, uint2 coords)
-{
-    uint3 h = HashPcg3d(uint3(coords.x, coords.y, dimension));
-
-    float xi0 = float(sampleIndex) / float(sampleCount);
-    float xi1 = OwenScrambledRadicalInverse(sampleIndex, h.y);
-
-    uint bits0 = uint(xi0 * 4294967296.0);
-    bits0 = OwenHash(bits0, h.x);
-    xi0 = float(bits0) * 2.3283064365386963e-10;
-
-    return float2(xi0, xi1);
-}
-
-float2 GetSample(uint sampleIndex, uint sampleCount, uint dimension, uint2 coords)
-{
-    return OwenHammersley(sampleIndex, sampleCount, dimension, coords);
+    return float3(r * cos(phi), r * sin(phi), z);
 }
 
 float3 RandomDirectionInHemisphere(float3 normal, float2 rand)
@@ -251,6 +218,20 @@ void AccumulateColor(RWTexture2D<float4> tex, uint2 coords, uint sample, float4 
 
         tex[coords] = accumulatedColor;
     }
+}
+
+void AccumulateSH(RWStructuredBuffer<SHProbe> buffer, uint probeIndex, Spectrum spectrum)
+{
+    SHProbe probe = buffer[probeIndex];
+
+    probe.L0 += spectrum.color;
+    probe.sampleCount += spectrum.samples;
+
+    probe.L1x += spectrum.l1x;
+    probe.L1y += spectrum.l1y;
+    probe.L1z += spectrum.l1z;
+
+    buffer[probeIndex] = probe;
 }
 
 struct Spectrum
