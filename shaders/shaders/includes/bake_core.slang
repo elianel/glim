@@ -220,11 +220,12 @@ void AccumulateColor(RWTexture2D<float4> tex, uint2 coords, uint sample, float4 
     }
 }
 
+#ifdef LIGHTPROBE_SH
 void AccumulateSH(RWStructuredBuffer<SHProbe> buffer, uint probeIndex, Spectrum spectrum)
 {
     SHProbe probe = buffer[probeIndex];
 
-    probe.L0 += spectrum.color;
+    probe.L0 += spectrum.l0;
 
     probe.L1x += spectrum.l1x;
     probe.L1y += spectrum.l1y;
@@ -232,42 +233,55 @@ void AccumulateSH(RWStructuredBuffer<SHProbe> buffer, uint probeIndex, Spectrum 
 
     buffer[probeIndex] = probe;
 }
+#endif
 
 struct Spectrum
 {
-    float3 color;
 
+#ifdef LIGHTPROBE_SH
+    float3 l0;
     float3 l1x;
     float3 l1y;
     float3 l1z;
-
-    uint samples;
+#else
+    float3 color;
+#endif
 };
 
 Spectrum SpectrumZero()
 {
     Spectrum spectrum;
 
-    spectrum.color = 0;
-
+#ifdef LIGHTPROBE_SH
+    spectrum.l0 = 0;
     spectrum.l1x = 0;
     spectrum.l1y = 0;
     spectrum.l1z = 0;
-
-    spectrum.samples = 0;
+#else
+    spectrum.color = 0;
+#endif
 
     return spectrum;
 }
 
+static const float L0_NORMALIZATION = 0.5 * sqrt(1.0 / float.getPi());
+static const float L1_NORMALIZATION = 0.5 * sqrt(3.0 / float.getPi());
+static const float L2_2_NORMALIZATION = 0.5 * sqrt(15.0 / float.getPi());
+static const float L20_NORMALIZATION = 0.25 * sqrt(5.0 / float.getPi());
+static const float L22_NORMALIZATION = 0.25 * sqrt(15.0 / float.getPi());
+
+static const float A_HAT_0 = float.getPi();
+static const float A_HAT_1 = 2.0 * float.getPi() / 3.0;
+static const float A_HAT_2 = float.getPi() / 4.0;
+
 void SpectrumAdd(inout Spectrum spectrum, float3 color, float3 wi)
 {
-    spectrum.samples++;
-
+#ifdef LIGHTPROBE_SH
+    spectrum.l0 += color * L0_NORMALIZATION * A_HAT_0;
+    spectrum.l1x += color * L1_NORMALIZATION * wi.x * A_HAT_1;
+    spectrum.l1y += color * L1_NORMALIZATION * wi.y * A_HAT_1;
+    spectrum.l1z += color * L1_NORMALIZATION * wi.z * A_HAT_1;
+#else
     spectrum.color += color;
-
-    wi.z = -wi.z;
-
-    spectrum.l1x += color * wi.x;
-    spectrum.l1y += color * wi.y;
-    spectrum.l1z += color * wi.z;
+#endif
 }

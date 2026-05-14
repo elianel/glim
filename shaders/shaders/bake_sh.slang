@@ -1,3 +1,5 @@
+#define LIGHTPROBE_SH
+
 #include "includes/bake_core.slang"
 #include "includes/sobol_burley.slang"
 
@@ -69,6 +71,8 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         }
     }
 
+    color *= 1.0 / float.getPi();
+
     SpectrumAdd(spectrum, color, L);
 }
 
@@ -119,6 +123,8 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
             color = 0.0;
         }
     }
+
+    color *= 1.0 / float.getPi();
 
     SpectrumAdd(spectrum, color, L);
 }
@@ -190,7 +196,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
             float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
             float3 bounceAlbedo = SampleAlbedo(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
 
-            SpectrumAdd(spectrum, bounceEmission * throughput * float.getPi(), bounceRay.D);
+            SpectrumAdd(spectrum, bounceEmission * throughput, bounceRay.D);
 
             throughput *= bounceAlbedo;
 

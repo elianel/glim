@@ -643,7 +643,6 @@ fn bake_lightmaps(app: &mut Stilb) {
         }
     }
 
-    // todo implement probe SH baking
     if app.probes.len() > 0 {
         update_bake_sh_shader(
             &app.vk,
@@ -655,9 +654,9 @@ fn bake_lightmaps(app: &mut Stilb) {
             app.sampler_linear_clamp,
         );
 
-        // todo config
-        let probes_samples = 256;
-        let probe_bounces = 1;
+        // todo probe config
+        let probes_samples = app.groups[0].settings.max_samples;
+        let probe_bounces = app.groups[0].settings.bounce_count;
         initialize_bake_sh_push_constants(app, probes_samples, probe_bounces);
 
         loop {

@@ -60,6 +60,48 @@ namespace stilb
             }
         }
 
+        [MenuItem("Test/ZeroL2Coefficients")]
+        static void ZeroL2Coefficients()
+        {
+            var lightingDataAsset = Lightmapping.lightingDataAsset;
+            using var lda = new SerializedObject(lightingDataAsset);
+            InspectorModeObject.SetValue(lda, InspectorMode.DebugInternal);
+
+            var lightProbesRef = lda.FindProperty("m_LightProbes").objectReferenceValue;
+            using var probesSo = new SerializedObject(lightProbesRef);
+            InspectorModeObject.SetValue(probesSo, InspectorMode.DebugInternal);
+
+            var bakedCoeff = probesSo.FindProperty("m_BakedCoefficients");
+
+            for (int i = 0; i < bakedCoeff.arraySize; i++)
+            {
+                SerializedProperty prop = bakedCoeff.GetArrayElementAtIndex(i);
+
+                prop.Next(true);
+
+                for (int j = 0; j < 27; j++)
+                {
+                    // L2 starts at coefficient 4 for each color channel
+                    // RGB blocks:
+                    // 0-8   = R
+                    // 9-17  = G
+                    // 18-26 = B
+
+                    int channelCoeff = j % 9;
+
+                    if (channelCoeff >= 4)
+                    {
+                        prop.floatValue = 0f;
+                    }
+
+                    prop.Next(false);
+                }
+            }
+
+            probesSo.ApplyModifiedPropertiesWithoutUndo();
+            Lightmapping.lightingDataAsset = lightingDataAsset;
+        }
+
         public static LightingDataAsset CreateAsset(Scene targetScene)
         {
             bool saved = EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();

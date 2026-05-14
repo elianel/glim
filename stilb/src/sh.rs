@@ -1,4 +1,4 @@
-use std::f32::{self, consts::PI};
+use std::f32::{self};
 
 use crate::math::Vector3;
 
@@ -23,11 +23,19 @@ impl SHProbe {
     pub fn normalize(&mut self, samples: u32) {
         let inv_samples = 1.0 / (samples as f32);
 
-        self.l0 = self.l0 * (0.5 * (1.0 / PI).sqrt()) * PI * inv_samples;
+        self.l0 = self.l0 * inv_samples;
 
-        let l1_scale = inv_samples * (0.5 * (3.0 / PI).sqrt()) * (2.0 * PI / 3.0);
-        self.l1x = self.l1x * l1_scale;
-        self.l1y = self.l1y * l1_scale;
-        self.l1z = self.l1z * l1_scale;
+        self.l1x = self.l1x * inv_samples;
+        self.l1y = self.l1y * inv_samples;
+
+        // flip Z for unity
+        self.l1z = (Vector3::ZERO - self.l1z) * inv_samples;
+
+        // self.l0 = self.l0 * (0.5 * (1.0 / PI).sqrt()) * PI * inv_samples;
+
+        // let l1_scale = inv_samples * (0.5 * (3.0 / PI).sqrt()) * (2.0 * PI / 3.0);
+        // self.l1x = self.l1x * l1_scale;
+        // self.l1y = self.l1y * l1_scale;
+        // self.l1z = self.l1z * l1_scale;
     }
 }
