@@ -14,7 +14,7 @@ pub struct GraphicsShader {
     geometry_module: vk::ShaderModule,
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
-    // pub descriptor_set: vk::DescriptorSet,
+    pub descriptor_set: vk::DescriptorSet,
     set_layout: vk::DescriptorSetLayout,
     pub framebuffer: vk::Framebuffer,
     pub render_pass: vk::RenderPass,
@@ -26,17 +26,17 @@ impl GraphicsShader {
         vertex_spv: Option<&[u32]>,
         fragment_spv: Option<&[u32]>,
         geometry_spv: Option<&[u32]>,
-        _bindings: &[vk::DescriptorSetLayoutBinding],
+        bindings: &[vk::DescriptorSetLayoutBinding],
         push_constant_ranges: &[vk::PushConstantRange],
         specialization_info: &vk::SpecializationInfo,
         target: &Texture2D,
     ) -> Self {
-        // let create_info = vk::DescriptorSetLayoutCreateInfo::default().bindings(bindings);
+        let create_info = vk::DescriptorSetLayoutCreateInfo::default().bindings(bindings);
 
-        // let set_layout =
-        //     unsafe { vk.device.create_descriptor_set_layout(&create_info, None) }.unwrap();
+        let set_layout =
+            unsafe { vk.device.create_descriptor_set_layout(&create_info, None) }.unwrap();
 
-        // let set_layouts = [set_layout];
+        let set_layouts = [set_layout];
 
         let vertex_module = if let Some(spv) = vertex_spv {
             let create_info = vk::ShaderModuleCreateInfo::default().code(spv);
@@ -149,9 +149,9 @@ impl GraphicsShader {
         let color_blending =
             vk::PipelineColorBlendStateCreateInfo::default().attachments(&blend_attachments);
 
-        let pipeline_layout =
-            vk::PipelineLayoutCreateInfo::default().push_constant_ranges(&push_constant_ranges);
-        // .set_layouts(&set_layouts);
+        let pipeline_layout = vk::PipelineLayoutCreateInfo::default()
+            .push_constant_ranges(&push_constant_ranges)
+            .set_layouts(&set_layouts);
 
         let pipeline_layout = unsafe {
             vk.device
@@ -217,18 +217,15 @@ impl GraphicsShader {
                 .unwrap()[0]
         };
 
-        // let mut allocate_info = vk::DescriptorSetAllocateInfo {
-        //     descriptor_pool: vk.descriptor_pool,
-        //     descriptor_set_count: 1,
-        //     ..Default::default()
-        // };
-        // allocate_info = allocate_info.set_layouts(&set_layouts);
+        let mut allocate_info = vk::DescriptorSetAllocateInfo {
+            descriptor_pool: vk.descriptor_pool,
+            descriptor_set_count: 1,
+            ..Default::default()
+        };
+        allocate_info = allocate_info.set_layouts(&set_layouts);
 
-        // let descriptor_set =
-        //     unsafe { vk.device.allocate_descriptor_sets(&allocate_info) }.unwrap()[0];
-
-        // let descriptor_set = vk::DescriptorSet::null();
-        let set_layout = vk::DescriptorSetLayout::null();
+        let descriptor_set =
+            unsafe { vk.device.allocate_descriptor_sets(&allocate_info) }.unwrap()[0];
 
         Self {
             vertex_module,
@@ -236,7 +233,7 @@ impl GraphicsShader {
             geometry_module,
             pipeline,
             pipeline_layout,
-            // descriptor_set,
+            descriptor_set,
             set_layout,
             framebuffer,
             render_pass,
@@ -284,9 +281,6 @@ impl GraphicsShader {
 
 #[repr(C)]
 pub struct VisibilityPushConstants {
-    pub vertices: vk::DeviceAddress,
-    pub indices: vk::DeviceAddress,
-
     pub width: u32,
     pub height: u32,
     pub group_index: u32,
@@ -294,10 +288,32 @@ pub struct VisibilityPushConstants {
 }
 
 pub fn create_visibility_shader(vk: &mut VulkanContext, visibility: &Texture2D) -> GraphicsShader {
+    let mut bindings = Vec::new();
+
+    let stage_flags = vk::ShaderStageFlags::GEOMETRY
+        | vk::ShaderStageFlags::FRAGMENT
+        | vk::ShaderStageFlags::VERTEX;
+
+    // Indices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags,
+        ..Default::default()
+    });
+
+    // Vertices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags,
+        ..Default::default()
+    });
+
     let push_constant_ranges = [vk::PushConstantRange {
-        stage_flags: vk::ShaderStageFlags::GEOMETRY
-            | vk::ShaderStageFlags::FRAGMENT
-            | vk::ShaderStageFlags::VERTEX,
+        stage_flags,
         offset: 0,
         size: std::mem::size_of::<VisibilityPushConstants>() as u32,
     }];
@@ -307,10 +323,51 @@ pub fn create_visibility_shader(vk: &mut VulkanContext, visibility: &Texture2D) 
         Some(get_init_from_bake_vertex_shader()),
         Some(get_init_from_bake_fragment_shader()),
         Some(get_init_from_bake_geometry_shader()),
-        &[],
+        &bindings,
         &push_constant_ranges,
         &vk::SpecializationInfo::default(),
         visibility,
     );
     shader
+}
+
+pub fn update_visibility_shader(
+    vk: &VulkanContext,
+    shader: &GraphicsShader,
+    indices: vk::Buffer,
+    vertices: vk::Buffer,
+) {
+    let mut descriptor_writes = Vec::new();
+
+    // Indices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: indices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // Vertices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: vertices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }

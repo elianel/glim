@@ -9,6 +9,7 @@ use glfw_sys::{
 
 use crate::buffer::Buffer;
 use crate::compute_shader::{BakeSHPushConstants, load_bake_sh_shader, update_bake_sh_shader};
+use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
 use crate::sh::SHProbe;
 use crate::{
@@ -176,6 +177,13 @@ fn render_visibility_buffer_bake(
 
     let mut shader = create_visibility_shader(vk, &visibility);
 
+    update_visibility_shader(
+        vk,
+        &shader,
+        app.gpu_mesh.index_buffer.buffer,
+        app.gpu_mesh.vertex_buffer.buffer,
+    );
+
     let cmd = vk.begin_single_use_cmd();
 
     let clear_values = [vk::ClearValue {
@@ -200,8 +208,6 @@ fn render_visibility_buffer_bake(
     render_pass_begin = render_pass_begin.clear_values(&clear_values);
 
     let push = VisibilityPushConstants {
-        vertices: mesh.vertex_buffer.address,
-        indices: mesh.index_buffer.address,
         width: visibility.width(),
         height: visibility.height(),
         group_index,
@@ -215,6 +221,15 @@ fn render_visibility_buffer_bake(
             .cmd_begin_render_pass(cmd, &render_pass_begin, vk::SubpassContents::INLINE);
         vk.device
             .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, shader.pipeline);
+
+        vk.device.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::GRAPHICS,
+            shader.pipeline_layout,
+            0,
+            &[shader.descriptor_set],
+            &[],
+        );
 
         vk.device.cmd_push_constants(
             cmd,
