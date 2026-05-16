@@ -17,7 +17,7 @@ struct PushConstants
     uint bounceCount;
 };
 
-void ShadeLightIndirect(inout Spectrum spectrum, Light light, Surface surface, float2 xi, float3 throughput, float3 wi)
+float3 ShadeLightIndirect(inout Spectrum spectrum, Light light, Surface surface, float2 xi, float3 throughput)
 {
     Ray shadowRay;
     shadowRay.P = RayOffset(surface.P, surface.Ng);
@@ -68,8 +68,7 @@ void ShadeLightIndirect(inout Spectrum spectrum, Light light, Surface surface, f
     }
 
     // color *= 1.0 / float.getPi();
-
-    SpectrumAdd(spectrum, color, wi);
+    return color;
 }
 
 void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, float2 xi, float3 throughput)
@@ -173,6 +172,8 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
     bounceRay.tMax = RAY_MAX;
     float3 wi = bounceRay.D;
 
+    float3 indirect = 0;
+
     // bounces
     for (uint bounceIndex = 0; bounceIndex < bounceCount; bounceIndex++)
     {
@@ -195,7 +196,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
             float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
             float3 bounceAlbedo = SampleAlbedo(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
 
-            SpectrumAdd(spectrum, bounceEmission * throughput, wi);
+            indirect += bounceEmission * throughput;
 
             throughput *= bounceAlbedo;
 
@@ -204,7 +205,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
 
             for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
             {
-                ShadeLightIndirect(spectrum, Lights[lightIndex], surfaceBounce, xiLight, throughput, wi);
+                indirect += ShadeLightIndirect(spectrum, Lights[lightIndex], surfaceBounce, xiLight, throughput);
             }
 
             bounceRay.P = RayOffset(surfaceBounce.P, surfaceBounce.Ng);
@@ -215,6 +216,8 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
             break;
         }
     }
+
+    SpectrumAdd(spectrum, indirect, wi);
 
     AccumulateSH(SHProbes, probeIndex, spectrum);
 }
