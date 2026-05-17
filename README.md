@@ -12,7 +12,6 @@
 - [ ] Figure out why light probes are a bit darker
 - [ ] Include OIDN dlls
 - [ ] Area lights
-- [ ] L2 SH
 - [ ] Seam stitching
 - [ ] Add support for CWBVH
 - [ ] UV Packing per chart
@@ -35,6 +34,11 @@
 
 
 # Complete
+- [X] L2 SH
 - [x] Export light probe positions and accumulate SH
 - [x] Set all the globals in the unity meta pass
 - [x] OIDN2 bindings and apply denoise
+
+## Readme
+
+- Supports only linear color space

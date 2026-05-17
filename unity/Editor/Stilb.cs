@@ -104,8 +104,14 @@ namespace stilb
                     continue;
                 }
 
-                // todo color temperature
-                var linear = light.color.linear;
+                var gammaColor = light.color;
+                if (light.useColorTemperature)
+                {
+                    Color temperature = Mathf.CorrelatedColorTemperatureToRGB(light.colorTemperature).gamma;
+                    gammaColor *= temperature;
+                }
+                var linear = gammaColor.linear;
+
                 var color = new Vector3(linear.r, linear.g, linear.b) * light.intensity;
 
                 var lightType = Bindings.LightType.Directional;
