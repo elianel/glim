@@ -22,6 +22,7 @@
 - [ ] Stop closing and opening the scene twice
 - [ ] Proper sync for bake loop
 - [ ] Probe occlusion
+- [ ] Try to stop unity from slowing down the bake for no reason
 
 ## Easy
 - [ ] Better panic handling
@@ -30,10 +31,10 @@
 - [ ] Log callback
 - [ ] Double sided global illumination
 - [ ] Clamp max samples and bounces
-- [ ] Move test to another crate so gltf and image are not dependencies
 
 
 # Complete
+- [x] Move test to another crate so gltf and image are not dependencies
 - [x] Configurable nearest and linear sampler
 - [x] Configurable probe samples and bounces
 - [X] L2 SH

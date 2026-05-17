@@ -60,8 +60,14 @@ namespace stilb
             }
         }
 
+        [MenuItem("Test/Tetrahedralize")]
+        public static void Tetrahedralize()
+        {
+            LightProbes.Tetrahedralize();
+        }
+
         // [MenuItem("Test/ZeroL2Coefficients")]
-        static void ZeroL2Coefficients()
+        public static void ZeroL2Coefficients()
         {
             var lightingDataAsset = Lightmapping.lightingDataAsset;
             using var lda = new SerializedObject(lightingDataAsset);
