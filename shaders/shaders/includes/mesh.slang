@@ -4,7 +4,7 @@
 
 float2 OctahedronWrap(float2 v)
 {
-    return (1.0 - abs(v.yx)) * (v.xy >= 0.0 ? 1.0 : -1.0);
+    return (1.0 - abs(v.yx)) * select(v.xy >= 0.0, 1.0, -1.0);
 }
 
 float3 DecodeNormalOctahedron(float2 e)

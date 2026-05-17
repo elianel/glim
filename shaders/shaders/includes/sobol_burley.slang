@@ -172,7 +172,7 @@ uint RNGPixelInit(uint2 coords, SamplingPattern pattern)
     {
         return HashPcg3d(coords.xyy).x;
         // The white-noise samplers use a random per-pixel hash to generate independent sequences
-        return hash_iqnt2d(coords.x, coords.y) ^ seed;
+        // return hash_iqnt2d(coords.x, coords.y) ^ seed;
     }
 
     // The blue-noise samplers use a single sequence for all pixels, but offset the index within

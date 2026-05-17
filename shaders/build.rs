@@ -111,6 +111,10 @@ fn main() {
 
         let status = Command::new(&slangc)
             .arg(shader_path.to_str().unwrap())
+            .arg("-warnings-as-errors")
+            .arg("all")
+            .arg("-O3")
+            .arg("-g0")
             .arg("-o")
             .arg(spv_path.to_str().unwrap())
             .args(["-target", "spirv"])
