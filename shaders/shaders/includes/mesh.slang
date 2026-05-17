@@ -66,6 +66,7 @@ struct Surface
     float2 uv;
 
     uint lightmapGroup;
+    bool backfaceGI;
 
     static Surface Get(uint primitiveID, float2 bary)
     {
@@ -112,6 +113,7 @@ struct Surface
         surface.smoothP = smoothP;
         surface.uv = uv;
         surface.lightmapGroup = v0.GetLightmapGroup();
+        surface.backfaceGI = v0.BackfaceGI();
         return surface;
     };
 };

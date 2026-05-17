@@ -139,8 +139,6 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
     Spectrum spectrum = SpectrumZero();
     float3 throughput = float3(1.0);
 
-    // todo backface gi
-    bool backfaceGI = false;
     uint sampleIndex = Push.sampleIndex;
     uint sampleCount = Push.maxSamples;
     uint bounceCount = Push.bounceCount;
@@ -179,6 +177,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
         if (TraceRay(bounceRay, bounceHit))
         {
             Surface surfaceBounce = Surface::Get(bounceHit.primitiveID, bounceHit.bary);
+            bool backfaceGI = surfaceBounce.backfaceGI;
 
             if (!bounceHit.frontFace)
             {

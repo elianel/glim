@@ -105,8 +105,6 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 
     Surface surface = Surface::Get(primitiveID, bary);
 
-    // todo backface gi
-    bool backfaceGI = false;
     uint sampleIndex = Push.sampleIndex;
     uint sampleCount = Push.maxSamples;
     uint bounceCount = Push.bounceCount;
@@ -160,6 +158,7 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         if (TraceRay(bounceRay, bounceHit))
         {
             Surface surfaceBounce = Surface::Get(bounceHit.primitiveID, bounceHit.bary);
+            bool backfaceGI = surfaceBounce.backfaceGI;
 
             if (!bounceHit.frontFace)
             {

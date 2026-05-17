@@ -46,16 +46,14 @@ struct PushConstants
     ray.tMin = 0.001;
     ray.tMax = RAY_MAX;
 
-    // todo backface gi
-    bool backfaceGI = false;
-
     float4 result;
     Hit hit;
     if (TraceRay(ray, hit))
     {
-        bool visible = backfaceGI || hit.frontFace;
         Surface surface = Surface::Get(hit.primitiveID, hit.bary);
+        bool backfaceGI = surface.backfaceGI;
         bool smooth = UseSmoothPosition(surface);
+        bool visible = backfaceGI || hit.frontFace;
         result = EncodeVisibilityBuffer(hit.bary, hit.primitiveID, visible, smooth);
     }
     else
