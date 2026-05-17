@@ -23,6 +23,9 @@ mod tests {
             throttle_preview_ms: 2,
             callback: test_save_callback,
             probes_callback: test_probes_callback,
+            texture_filter: TextureSamplerFilter::Nearest,
+            probe_samples: 4096,
+            probe_bounces: 3,
         };
 
         config.camera_forward = Vector3 {

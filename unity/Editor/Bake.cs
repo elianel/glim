@@ -1,14 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditorInternal;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.SceneManagement;
 
 namespace stilb
 {
@@ -212,9 +209,6 @@ namespace stilb
                 Debug.LogError("Bake already running");
                 return;
             }
-
-            config.callback = OnReadback;
-            config.probes_callback = OnReadbackProbes;
 
             ResetBake();
 

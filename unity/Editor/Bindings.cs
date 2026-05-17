@@ -14,21 +14,55 @@ namespace stilb
             Unity = 1,
         }
 
+        public enum TextureSamplerFilter : uint
+        {
+            Nearest = 0,
+            Linear = 1,
+        }
+
+
         [StructLayout(LayoutKind.Sequential)]
         public struct StilbConfig
         {
-            public CoordinateSystem coordinate_system;
+            public readonly CoordinateSystem coordinate_system;
 
             [MarshalAs(UnmanagedType.I1)]
-            public bool is_preview;
-            public uint throttle_preview_ms;
-            public LightmapSettings preview_settings;
+            public readonly bool is_preview;
+            public readonly uint throttle_preview_ms;
+            public readonly LightmapSettings preview_settings;
 
-            public Vector3 camera_position;
-            public Vector3 camera_forward;
+            public readonly Vector3 camera_position;
+            public readonly Vector3 camera_forward;
 
-            public ReadbackCallback callback;
-            public ReadbackProbesCallback probes_callback;
+            public readonly ReadbackCallback callback;
+            public readonly ReadbackProbesCallback probes_callback;
+
+            public readonly TextureSamplerFilter texture_filter;
+            public readonly uint probe_samples;
+            public readonly uint probe_bounces;
+
+            public StilbConfig(CoordinateSystem coordinate_system,
+                               bool is_preview,
+                               uint throttle_preview_ms,
+                               LightmapSettings preview_settings,
+                               Vector3 camera_position,
+                               Vector3 camera_forward,
+                               TextureSamplerFilter texture_filter,
+                               uint probe_samples,
+                               uint probe_bounces)
+            {
+                this.coordinate_system = coordinate_system;
+                this.is_preview = is_preview;
+                this.throttle_preview_ms = throttle_preview_ms;
+                this.preview_settings = preview_settings;
+                this.camera_position = camera_position;
+                this.camera_forward = camera_forward;
+                this.callback = Bake.OnReadback;
+                this.probes_callback = Bake.OnReadbackProbes;
+                this.texture_filter = texture_filter;
+                this.probe_samples = probe_samples;
+                this.probe_bounces = probe_bounces;
+            }
         }
 
         [StructLayout(LayoutKind.Sequential)]

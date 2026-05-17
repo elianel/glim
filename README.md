@@ -21,6 +21,7 @@
 - [ ] Blue noise
 - [ ] Stop closing and opening the scene twice
 - [ ] Proper sync for bake loop
+- [ ] Probe occlusion
 
 ## Easy
 - [ ] Better panic handling
@@ -28,12 +29,12 @@
 - [ ] Return codes for bake success, fail, cancel
 - [ ] Log callback
 - [ ] Double sided global illumination
-- [ ] Configurable nearest and linear sampler
-- [ ] Configurable probe samples and bounces
 - [ ] Clamp max samples and bounces
 
 
 # Complete
+- [x] Configurable nearest and linear sampler
+- [x] Configurable probe samples and bounces
 - [X] L2 SH
 - [x] Export light probe positions and accumulate SH
 - [x] Set all the globals in the unity meta pass

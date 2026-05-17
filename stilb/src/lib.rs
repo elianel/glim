@@ -65,7 +65,7 @@ pub struct Stilb {
     pub init_from_camera_shader: ComputeShader,
     pub preview_initialized: bool,
 
-    pub sampler_linear_clamp: vk::Sampler,
+    pub texture_sampler: vk::Sampler,
 
     pub push: BakePushConstants,
 
@@ -130,6 +130,13 @@ pub enum CoordinateSystem {
     Unity = 1,
 }
 
+#[repr(u32)]
+#[derive(Clone, Copy, PartialEq)]
+pub enum TextureSamplerFilter {
+    Nearest = 0,
+    Linear = 1,
+}
+
 #[repr(C)]
 #[derive(Clone)]
 pub struct StilbConfig {
@@ -144,6 +151,10 @@ pub struct StilbConfig {
 
     pub callback: ReadbackCallback,
     pub probes_callback: ReadbackProbesCallback,
+
+    pub texture_filter: TextureSamplerFilter,
+    pub probe_samples: u32,
+    pub probe_bounces: u32,
 }
 
 #[inline]
@@ -497,7 +508,7 @@ fn bake_lightmaps(app: &mut Stilb) {
             &albedos,
             &emissions,
             diffuse.view(),
-            app.sampler_linear_clamp,
+            app.texture_sampler,
             app.gpu_mesh.index_buffer.buffer,
             app.gpu_mesh.vertex_buffer.buffer,
             app.gpu_lights.buffer,
@@ -567,7 +578,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                         &albedos,
                         &emissions,
                         diffuse.view(),
-                        app.sampler_linear_clamp,
+                        app.texture_sampler,
                         app.gpu_mesh.index_buffer.buffer,
                         app.gpu_mesh.vertex_buffer.buffer,
                         app.gpu_lights.buffer,
@@ -620,7 +631,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                 &albedos,
                 &emissions,
                 diffuse.view(),
-                app.sampler_linear_clamp,
+                app.texture_sampler,
                 app.gpu_mesh.index_buffer.buffer,
                 app.gpu_mesh.vertex_buffer.buffer,
                 app.gpu_lights.buffer,
@@ -685,15 +696,14 @@ fn bake_lightmaps(app: &mut Stilb) {
             app.probes_buffer.buffer,
             &albedos,
             &emissions,
-            app.sampler_linear_clamp,
+            app.texture_sampler,
             app.gpu_mesh.index_buffer.buffer,
             app.gpu_mesh.vertex_buffer.buffer,
             app.gpu_lights.buffer,
         );
 
-        // todo probe config
-        let probes_samples = app.groups[0].settings.max_samples * 8;
-        let probe_bounces = app.groups[0].settings.bounce_count;
+        let probes_samples = app.config.probe_samples;
+        let probe_bounces = app.config.probe_bounces;
         initialize_bake_sh_push_constants(app, probes_samples, probe_bounces);
 
         loop {
@@ -1337,9 +1347,15 @@ impl Stilb {
 
         let gpu_lights = Buffer::null();
 
+        let filter = if config.texture_filter == TextureSamplerFilter::Linear {
+            vk::Filter::LINEAR
+        } else {
+            vk::Filter::NEAREST
+        };
+
         let sampler_info = vk::SamplerCreateInfo::default()
-            .mag_filter(vk::Filter::LINEAR)
-            .min_filter(vk::Filter::LINEAR)
+            .mag_filter(filter)
+            .min_filter(filter)
             .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
             .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
             .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
@@ -1352,8 +1368,7 @@ impl Stilb {
             .border_color(vk::BorderColor::FLOAT_OPAQUE_BLACK)
             .unnormalized_coordinates(false);
 
-        let sampler_linear_clamp =
-            unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
+        let texture_sampler = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
 
         let push = BakePushConstants {
             lights_count: 0,
@@ -1392,7 +1407,7 @@ impl Stilb {
             init_from_camera_shader,
             preview_initialized: false,
             gpu_lights,
-            sampler_linear_clamp,
+            texture_sampler,
             push,
             render_target: RenderTarget::None,
             probes: Vec::new(),

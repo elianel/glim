@@ -137,11 +137,7 @@ pub extern "C" fn app_destroy(app: *mut Stilb) {
             app.bake_probes_shader.destroy(&app.vk);
         }
 
-        unsafe {
-            app.vk
-                .device
-                .destroy_sampler(app.sampler_linear_clamp, None)
-        };
+        unsafe { app.vk.device.destroy_sampler(app.texture_sampler, None) };
 
         println!("App destroyed");
     }
