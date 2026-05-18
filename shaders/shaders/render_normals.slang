@@ -28,5 +28,5 @@
     float2 bary = visibility.xy;
     Surface surface = Surface::Get(primitiveID, bary);
 
-    NormalsBuffer[coords] = float4(surface.N, 0);
+    NormalsBuffer[coords] = float4(surface.N, 1);
 }

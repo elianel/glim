@@ -141,9 +141,8 @@ impl Oidn {
         let filter = self.filter;
         let device = self.device;
 
-        let mut albedo = vec![1.0f32; pixels.len()];
+        let mut albedo = vec![0.5f32; pixels.len()];
 
-        // todo add albedo and normal buffers
         unsafe {
             (self.set_shared_filter_image)(
                 filter,
@@ -190,6 +189,7 @@ impl Oidn {
                 0,
             );
 
+            (self.set_filter_bool)(filter, c"cleanAux".as_ptr(), true);
             (self.set_filter_bool)(filter, c"hdr".as_ptr(), true);
             (self.commit_filter)(filter);
             (self.execute_filter)(filter);
