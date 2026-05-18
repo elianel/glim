@@ -120,6 +120,16 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         {
             visibility = AdjustSamplePositions(surface, visibility);
             VisibilityBuffer[coords] = visibility;
+            encoded = asuint(visibility.a);
+
+            if (encoded == 0)
+            {
+                return;
+            }
+
+            primitiveID = asuint(visibility.z);
+            bary = visibility.xy;
+            useSmoothP = (encoded & (1 << 1)) != 0;
         }
     }
 
