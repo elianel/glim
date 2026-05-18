@@ -11,6 +11,8 @@ use crate::buffer::Buffer;
 use crate::compute_shader::{BakeSHPushConstants, load_bake_sh_shader, update_bake_sh_shader};
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
+use crate::math::Vector2;
+use crate::seam_optimizer::Seams;
 use crate::sh::SHProbe;
 use crate::{
     camera::Camera,
@@ -38,6 +40,7 @@ mod lights;
 mod math;
 mod mesh;
 mod oidn;
+mod seam_optimizer;
 mod sh;
 mod test;
 mod texture2d;
@@ -470,11 +473,6 @@ fn start_bake(app: &mut Stilb) {
         app.cpu_mesh.vertices.len(),
         app.cpu_mesh.indices.len()
     );
-    // free cpu mesh
-    app.cpu_mesh = Mesh {
-        vertices: Vec::new(),
-        indices: Vec::new(),
-    };
 
     let mesh::AccelerationStructureType::RayQuery(blas) = &app.gpu_mesh.acceleration_structure
     else {
@@ -646,6 +644,8 @@ fn bake_lightmaps(app: &mut Stilb) {
             let group_index = i as u32;
 
             let group = &app.groups[i];
+            let width = group.settings.width;
+            let height = group.settings.height;
             app.push.sample_index = 0;
             let settings = group.settings.clone();
             update_render_target(app, &settings, group_index);
@@ -695,13 +695,45 @@ fn bake_lightmaps(app: &mut Stilb) {
 
             let callback = app.config.callback;
 
-            let mut pixels_read = diffuse.read_pixels(&app.vk);
+            let mut pixels = diffuse.read_pixels(&app.vk);
+
+            // seam fixing
+            {
+                let cos_normal_threshold = 0.95;
+                let indices = &app.cpu_mesh.indices;
+
+                let mut positions = Vec::with_capacity(indices.len() * 3 * 3);
+                let mut texcoords = Vec::with_capacity(indices.len() * 3 * 2);
+
+                for i in &app.cpu_mesh.indices {
+                    let v = app.cpu_mesh.vertices[*i as usize].position;
+                    let uv = app.cpu_mesh.vertices[*i as usize].uv;
+
+                    positions.push(v.x);
+                    positions.push(v.y);
+                    positions.push(v.z);
+
+                    texcoords.push(uv.x);
+                    texcoords.push(1.0 - uv.y);
+                }
+
+                let seams = Seams::find(
+                    &mut positions,
+                    &mut texcoords,
+                    &mut pixels,
+                    width,
+                    height,
+                    cos_normal_threshold,
+                );
+                let lambda = 0.5;
+                seams.optimize(&mut pixels, lambda);
+            }
 
             if settings.denoise {
                 match &oidn {
                     Some(oidn) => {
                         oidn.denoise(
-                            &mut pixels_read,
+                            &mut pixels,
                             settings.width as usize,
                             settings.height as usize,
                         );
@@ -713,8 +745,8 @@ fn bake_lightmaps(app: &mut Stilb) {
             let readback_data = ReadbackData {
                 group_index,
                 ty: 0,
-                pixels: pixels_read.as_ptr(),
-                pixels_count: pixels_read.len() as u32,
+                pixels: pixels.as_ptr(),
+                pixels_count: pixels.len() as u32,
                 width: settings.width,
                 height: settings.height,
             };

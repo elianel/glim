@@ -20,12 +20,14 @@
 - [ ] Proper sync for bake loop
 - [ ] Probe occlusion
 - [ ] Try to stop unity from slowing down the bake start for no reason
+- [ ] Bake reflection probes with super sampling
 
 ## Easy
 - [ ] Better panic handling
 - [ ] Sync scene view fov
 - [ ] Return codes for bake success, fail, cancel
 - [ ] Log callback
+- [ ] Match shadow radius
 
 # Complete
 - [x] Figure out why light probes are a bit darker
