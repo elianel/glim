@@ -113,6 +113,16 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     uint sobolIndexMask = reversebits(NextPowerOfTwo(sampleCount - 1) - 1);
     // sobolIndexMask = ~0u;
 
+    // todo temp
+    if (USE_CAMERA == 0)
+    {
+        if (Push.sampleIndex == 0)
+        {
+            visibility = AdjustSamplePositions(surface, visibility);
+            VisibilityBuffer[coords] = visibility;
+        }
+    }
+
     // SobolBurley  0.5600289s
     // BlueNoiseFirst 0.8252296s
     SamplingPattern pattern = SamplingPattern::SobolBurley;

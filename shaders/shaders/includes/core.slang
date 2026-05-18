@@ -296,3 +296,97 @@ bool UseSmoothPosition(Surface surface)
 
     return false;
 }
+
+float4 AdjustSamplePositions(Surface surface, float4 visibility)
+{
+    float3 originalP = surface.P;
+
+    uint primitiveID = asuint(visibility.z);
+    float2 bary = visibility.xy;
+
+    uint2 resolution;
+    VisibilityBuffer.GetDimensions(resolution.x, resolution.y);
+
+    uint i0 = Indices[primitiveID * 3 + 0];
+    uint i1 = Indices[primitiveID * 3 + 1];
+    uint i2 = Indices[primitiveID * 3 + 2];
+
+    float3 p0 = Vertices[i0].GetPosition();
+    float3 p1 = Vertices[i1].GetPosition();
+    float3 p2 = Vertices[i2].GetPosition();
+    float2 uv0 = Vertices[i0].GetUV();
+    float2 uv1 = Vertices[i1].GetUV();
+    float2 uv2 = Vertices[i2].GetUV();
+
+    float3 edge1 = p1 - p0;
+    float3 edge2 = p2 - p0;
+    float2 duv1 = uv1 - uv0;
+    float2 duv2 = uv2 - uv0;
+
+    float det = duv1.x * duv2.y - duv1.y * duv2.x;
+    float invDet = 1.0 / (abs(det) + 1e-9);
+
+    float3 dPdU = (edge1 * duv2.y - edge2 * duv1.y) * invDet;
+    float3 dPdV = (edge2 * duv1.x - edge1 * duv2.x) * invDet;
+
+    float2 texelSizeUV = 1.0 / float2(resolution);
+    float3 worldTexelU = dPdU * texelSizeUV.x;
+    float3 worldTexelV = dPdV * texelSizeUV.y;
+
+    float rayLength = (length(worldTexelU) + length(worldTexelV)) * 0.5;
+
+    float3 u = normalize(worldTexelU - dot(worldTexelU, surface.Ng) * surface.Ng);
+    float3 v = normalize(worldTexelV - dot(worldTexelV, surface.Ng) * surface.Ng);
+    float3 rayDirs[4] = {u, -u, v, -v};
+
+    float3 correctedP = surface.P;
+    float3 correctedNg = surface.Ng;
+    bool foundLeak = false;
+    float bias = 0.00001;
+
+    // https://ndotl.wordpress.com/2018/08/29/baking-artifact-free-lightmaps/
+    for (int i = 0; i < 4; i++)
+    {
+        Ray leakRay;
+        leakRay.P = RayOffset(surface.P, surface.Ng);
+        leakRay.D = rayDirs[i];
+        leakRay.tMin = 0;
+        leakRay.tMax = rayLength;
+
+        Hit leakHit;
+        if (TraceRay(leakRay, leakHit))
+        {
+            Surface hitSurface = Surface::Get(leakHit.primitiveID, leakHit.bary);
+
+            bool isBackface = dot(hitSurface.Ng, leakRay.D) > 0;
+
+            if (isBackface)
+            {
+                correctedP = surface.P + (rayDirs[i] * leakHit.t) + (hitSurface.Ng * bias);
+                foundLeak = true;
+                break;
+            }
+        }
+    }
+
+    if (foundLeak)
+    {
+        Ray findNewTri;
+        findNewTri.P = RayOffset(correctedP, surface.Ng);
+        findNewTri.D = -surface.Ng;
+        findNewTri.tMin = 0;
+        findNewTri.tMax = 0.001;
+
+        Hit newHit;
+        if (TraceRay(findNewTri, newHit))
+        {
+            primitiveID = newHit.primitiveID;
+            bary = newHit.bary;
+        }
+    }
+
+    visibility.xy = bary;
+    visibility.z = asfloat(primitiveID);
+
+    return visibility;
+}
