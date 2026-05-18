@@ -137,6 +137,13 @@ pub enum TextureSamplerFilter {
     Linear = 1,
 }
 
+#[repr(u32)]
+#[derive(Clone, Copy, PartialEq)]
+pub enum LightFalloffType {
+    InverseSquare = 0,
+    UnityBuiltIn = 1,
+}
+
 #[repr(C)]
 #[derive(Clone)]
 pub struct StilbConfig {
@@ -155,6 +162,7 @@ pub struct StilbConfig {
     pub texture_filter: TextureSamplerFilter,
     pub probe_samples: u32,
     pub probe_bounces: u32,
+    pub light_falloff: LightFalloffType,
 }
 
 #[inline]
@@ -410,11 +418,16 @@ fn clear_texture(
 fn start_bake(app: &mut Stilb) {
     assert!(app.cpu_mesh.vertices.len() > 0);
 
-    app.bake_shader =
-        load_bake_lights_shader(&app.vk, app.config.is_preview, app.groups.len() as u32);
+    app.bake_shader = load_bake_lights_shader(
+        &app.vk,
+        app.config.is_preview,
+        app.config.light_falloff,
+        app.groups.len() as u32,
+    );
 
     if app.probes.len() > 0 {
-        app.bake_probes_shader = load_bake_sh_shader(&app.vk, app.groups.len() as u32);
+        app.bake_probes_shader =
+            load_bake_sh_shader(&app.vk, app.groups.len() as u32, app.config.light_falloff);
 
         let flags = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER

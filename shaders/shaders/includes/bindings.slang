@@ -44,6 +44,9 @@ StructuredBuffer<Light> Lights;
 [[vk::binding(11, 0)]] [[vk::image_format("rgba32f")]]
 RWTexture2D<float4> NormalsBuffer;
 
+[vk::constant_id(0)] const uint USE_CAMERA;
+[vk::constant_id(1)] const uint LIGHT_FALLOFF_TYPE;
+
 float4 SampleAlbedo(float2 uv, uint lightmapGroup)
 {
     return Albedo[NonUniformResourceIndex(lightmapGroup)].SampleLevel(TextureSampler, uv, 0);

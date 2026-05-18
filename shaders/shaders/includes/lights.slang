@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bindings.slang"
+
 enum LightType : uint32_t
 {
     Directional = 0,
@@ -52,17 +54,9 @@ float3 GetDirectionalLightAngle(float3 L, float angle, float2 xi)
     return normalize(wi);
 }
 
-float GetLightFalloff(float distanceSquare, float invRangeSq)
-{
-    // return 1.0 / distanceSquare;
-    float factor = distanceSquare * invRangeSq;
-    float smoothFactor = saturate(1.0 - factor * factor);
-    return (smoothFactor * smoothFactor) / (distanceSquare + 1.0);
-}
-
 // thanks to error.mdl
 // https://discord.com/channels/419351657743253524/443155141235834881/1429649996084416572
-float GetDefaultUnityAttenuation(float distanceSquare, float invRangeSq)
+float GetUnityBuiltInAttenuation(float distanceSquare, float invRangeSq)
 {
     float rangeFraction = distanceSquare * invRangeSq;
     float hyperbolaFalloff = (0.04 / (rangeFraction + 0.04));
@@ -70,4 +64,19 @@ float GetDefaultUnityAttenuation(float distanceSquare, float invRangeSq)
     float lerpToZeroFactor = saturate((rangeFraction - 0.6407) / (1.0 - 0.6407));
     float unityLightFalloff = lerp(hyperbolaFalloff, 0, lerpToZeroFactor);
     return unityLightFalloff;
+}
+
+float LightFalloff(float distanceSquare, float invRangeSq)
+{
+    if (LIGHT_FALLOFF_TYPE == 0)
+    {
+        // return 1.0 / distanceSquare;
+        float factor = distanceSquare * invRangeSq;
+        float smoothFactor = saturate(1.0 - factor * factor);
+        return (smoothFactor * smoothFactor) / (distanceSquare + 1.0);
+    }
+    else
+    {
+        return GetUnityBuiltInAttenuation(distanceSquare, invRangeSq);
+    }
 }

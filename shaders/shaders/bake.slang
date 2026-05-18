@@ -4,8 +4,6 @@
 [[vk::push_constant]]
 PushConstants Push;
 
-[vk::constant_id(0)] const uint USE_CAMERA;
-
 struct PushConstants
 {
     uint lightCount;
@@ -48,12 +46,7 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 
         float rangeSq = light.range * light.range;
 
-// todo: add falloff type constant
-#if 1
-        falloff = GetDefaultUnityAttenuation(distanceSquare, 1.0 / rangeSq);
-#else
-        falloff = GetLightFalloff(distanceSquare, 1.0 / rangeSq);
-#endif
+        falloff = LightFalloff(distanceSquare, 1.0 / rangeSq);
 
         shadowRay.tMax = sqrt(distanceSquare);
     }

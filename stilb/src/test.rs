@@ -38,6 +38,9 @@ mod tests {
         // for _ in 0..1 {
         // {
         add_mesh(app, "..\\meshes\\monkey.glb").expect("failed to load mesh");
+        let (w, h, emission_pixels) = load_tga("..\\textures\\emission_cute.tga").unwrap();
+        // let emission_pixels = vec![0.0; (w * h * 4) as usize];
+        let albedo_pixels = vec![255; (w * h * 4) as usize];
         // }
 
         // app_add_light(
@@ -94,10 +97,6 @@ mod tests {
         //     },
         // );
 
-        let (w, h, emission_pixels) = load_tga("..\\textures\\emission_cute.tga").unwrap();
-        let albedo_pixels = vec![255; (w * h * 4) as usize];
-        // let emission_pixels = vec![0.0; (w * h * 4) as usize];
-
         let settings = LightmapSettings {
             width: w,
             height: h,
@@ -153,6 +152,7 @@ mod tests {
             texture_filter: TextureSamplerFilter::Linear,
             probe_samples: 4096,
             probe_bounces: 3,
+            light_falloff: LightFalloffType::InverseSquare,
         };
         config
     }

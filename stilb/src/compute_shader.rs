@@ -3,7 +3,9 @@ use std::ffi::CStr;
 use ash::vk::{self, Handle};
 use shaders::{get_bake_sh_shader, get_bake_shader, get_init_from_camera_shader};
 
-use crate::{as_bytes, math::Vector3, texture2d::Texture2D, vulkan_context::VulkanContext};
+use crate::{
+    LightFalloffType, as_bytes, math::Vector3, texture2d::Texture2D, vulkan_context::VulkanContext,
+};
 
 pub struct ComputeShader {
     module: vk::ShaderModule,
@@ -313,6 +315,7 @@ pub struct BakeSHPushConstants {
 pub fn load_bake_lights_shader(
     vk: &VulkanContext,
     use_camera: bool,
+    light_falloff_type: LightFalloffType,
     lightmap_groups: u32,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
@@ -399,14 +402,21 @@ pub fn load_bake_lights_shader(
     });
 
     let size = std::mem::size_of::<u32>();
-    let map_entries = [vk::SpecializationMapEntry {
-        constant_id: 0,
-        offset: 0 * (size as u32),
-        size: size,
-    }];
+    let map_entries = [
+        vk::SpecializationMapEntry {
+            constant_id: 0,
+            offset: 0 * (size as u32),
+            size: size,
+        },
+        vk::SpecializationMapEntry {
+            constant_id: 1,
+            offset: 1 * (size as u32),
+            size: size,
+        },
+    ];
 
     let use_camera: u32 = if use_camera { 1 } else { 0 };
-    let data = [use_camera];
+    let data = [use_camera, light_falloff_type as u32];
     let data_bytes = as_bytes(&data);
 
     let specialization_info = vk::SpecializationInfo::default()
@@ -428,7 +438,11 @@ pub fn load_bake_lights_shader(
     )
 }
 
-pub fn load_bake_sh_shader(vk: &VulkanContext, lightmap_groups: u32) -> ComputeShader {
+pub fn load_bake_sh_shader(
+    vk: &VulkanContext,
+    lightmap_groups: u32,
+    light_falloff_type: LightFalloffType,
+) -> ComputeShader {
     let mut bindings = Vec::new();
 
     // TopLevelAS
@@ -509,7 +523,19 @@ pub fn load_bake_sh_shader(vk: &VulkanContext, lightmap_groups: u32) -> ComputeS
         size: std::mem::size_of::<BakeSHPushConstants>() as u32,
     }];
 
-    let specialization_info = vk::SpecializationInfo::default();
+    let size = std::mem::size_of::<u32>();
+    let map_entries = [vk::SpecializationMapEntry {
+        constant_id: 1,
+        offset: 0 * (size as u32),
+        size: size,
+    }];
+
+    let data = [light_falloff_type as u32];
+    let data_bytes = as_bytes(&data);
+
+    let specialization_info = vk::SpecializationInfo::default()
+        .map_entries(&map_entries)
+        .data(data_bytes);
 
     ComputeShader::new(
         vk,
