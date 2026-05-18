@@ -356,12 +356,9 @@ float4 AdjustSamplePositions(Surface surface, float4 visibility)
         Hit leakHit;
         if (TraceRay(leakRay, leakHit))
         {
-            Surface hitSurface = Surface::Get(leakHit.primitiveID, leakHit.bary);
-
-            bool isBackface = dot(hitSurface.Ng, leakRay.D) > 0;
-
-            if (isBackface)
+            if (!leakHit.frontFace)
             {
+                Surface hitSurface = Surface::Get(leakHit.primitiveID, leakHit.bary);
                 correctedP = surface.P + (rayDirs[i] * leakHit.t) + (hitSurface.Ng * bias);
                 foundLeak = true;
                 break;

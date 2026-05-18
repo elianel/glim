@@ -5,6 +5,32 @@ mod tests {
     use crate::mesh::FfiMesh;
     use crate::{lights::LightType, math::*, *};
 
+    fn make_config() -> StilbConfig {
+        let preview_settings = LightmapSettings {
+            width: 1024,
+            height: 1024,
+            max_samples: 512,
+            bounce_count: 3,
+            denoise: false,
+        };
+
+        let config = StilbConfig {
+            coordinate_system: CoordinateSystem::Default,
+            is_preview: true,
+            camera_position: Vector3::new(0.0, 0.0, 5.0),
+            camera_forward: Vector3::FORWARD,
+            preview_settings,
+            throttle_preview_ms: 2,
+            callback: test_save_callback,
+            probes_callback: test_probes_callback,
+            texture_filter: TextureSamplerFilter::Linear,
+            probe_samples: 4096,
+            probe_bounces: 3,
+            light_falloff: LightFalloffType::InverseSquare,
+        };
+        config
+    }
+
     #[test]
     fn test_preview() {
         let mut config = make_config();
@@ -125,32 +151,6 @@ mod tests {
         app_run(app);
 
         app_destroy(app);
-    }
-
-    fn make_config() -> StilbConfig {
-        let preview_settings = LightmapSettings {
-            width: 1024,
-            height: 1024,
-            max_samples: 512,
-            bounce_count: 3,
-            denoise: false,
-        };
-
-        let config = StilbConfig {
-            coordinate_system: CoordinateSystem::Default,
-            is_preview: true,
-            camera_position: Vector3::new(0.0, 0.0, 5.0),
-            camera_forward: Vector3::FORWARD,
-            preview_settings,
-            throttle_preview_ms: 2,
-            callback: test_save_callback,
-            probes_callback: test_probes_callback,
-            texture_filter: TextureSamplerFilter::Linear,
-            probe_samples: 4096,
-            probe_bounces: 3,
-            light_falloff: LightFalloffType::InverseSquare,
-        };
-        config
     }
 
     pub fn load_tga(path: &str) -> std::io::Result<(u32, u32, Vec<f32>)> {

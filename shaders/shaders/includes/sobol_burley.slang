@@ -119,8 +119,8 @@ float2 SobolBurleySample2D(uint index, uint dimensionSet, uint seed, uint shuffl
 
     // Shuffle and mask. The masking is just for better
     // performance at low sample counts.
-    index = ReversedBitOwen(reversebits(index), seed ^ 0xf8ade99a);
     index &= shuffledIndexMask;
+    index = ReversedBitOwen(reversebits(index), seed ^ 0xf8ade99a);
 
     return float2(SobolBurley(index, 0, seed ^ 0xe0aaaf76),
                   SobolBurley(index, 1, seed ^ 0x94964d4e));
@@ -168,13 +168,14 @@ uint hash_iqnt2d(const uint x, const uint y)
 uint RNGPixelInit(uint2 coords, SamplingPattern pattern)
 {
     uint seed = 0;
+
     if (pattern == SamplingPattern::SobolBurley)
     {
-        return HashPcg3d(coords.xyy).x;
         // The white-noise samplers use a random per-pixel hash to generate independent sequences
-        // return hash_iqnt2d(coords.x, coords.y) ^ seed;
+        return hash_iqnt2d(coords.x, coords.y) ^ seed;
     }
 
+    seed = hash_uint(seed);
     // The blue-noise samplers use a single sequence for all pixels, but offset the index within
     // the sequence for each pixel. We use a hierarchically shuffled 2D morton curve to determine
     // each pixel's offset along the sequence.

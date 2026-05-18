@@ -103,8 +103,10 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     uint bounceCount = Push.bounceCount;
     uint lightCount = Push.lightCount;
     // todo set constant
-    uint sobolIndexMask = reversebits(NextPowerOfTwo(sampleCount - 1) - 1);
-    // sobolIndexMask = ~0u;
+
+    // this is actually incorrect in cycles
+    // uint sobolIndexMask = reversebits(NextPowerOfTwo(sampleCount - 1) - 1);
+    uint sobolIndexMask = NextPowerOfTwo(sampleCount - 1) - 1;
 
     // todo temp
     if (USE_CAMERA == 0)
@@ -126,8 +128,6 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         }
     }
 
-    // SobolBurley  0.5600289s
-    // BlueNoiseFirst 0.8252296s
     SamplingPattern pattern = SamplingPattern::SobolBurley;
     if (USE_CAMERA > 0)
     {

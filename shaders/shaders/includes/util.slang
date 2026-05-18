@@ -1,3 +1,9 @@
+// SPDX-FileCopyrightText: 2011-2022 Blender Foundation
+// SPDX-FileCopyrightText: 2026 z3y
+// SPDX-License-Identifier: Apache-2.0
+//
+// Adapted code from Blender Foundation
+
 #pragma once
 
 // [0.0, 1.0)
@@ -25,11 +31,11 @@ uint NextPowerOfTwo(const uint x)
 // https://github.com/skeeto/hash-prospector
 uint HashHPUint(uint i)
 {
-    i ^= i >> 16;
+    i ^= i >> 16u;
     i *= 0x21f0aaad;
-    i ^= i >> 15;
+    i ^= i >> 15u;
     i *= 0xd35a2d97;
-    i ^= i >> 15;
+    i ^= i >> 15u;
     return i ^ 0xe6fe3beb;
 }
 
@@ -59,4 +65,51 @@ uint Part1By1(uint x)
 uint MortonEncode(uint x, uint y)
 {
     return Part1By1(x) | (Part1By1(y) << 1);
+}
+
+#define rot(x, k) (((x) << (k)) | ((x) >> (32 - (k))))
+
+#define final(a, b, c)   \
+    {                    \
+        c ^= b;          \
+        c -= rot(b, 14); \
+        a ^= c;          \
+        a -= rot(c, 11); \
+        b ^= a;          \
+        b -= rot(a, 25); \
+        c ^= b;          \
+        c -= rot(b, 16); \
+        a ^= c;          \
+        a -= rot(c, 4);  \
+        b ^= a;          \
+        b -= rot(a, 14); \
+        c ^= b;          \
+        c -= rot(b, 24); \
+    }
+
+uint hash_uint(const uint kx)
+{
+    uint a;
+    uint b;
+    uint c;
+    a = b = c = 0xdeadbeef + (1 << 2) + 13;
+
+    a += kx;
+    final(a, b, c);
+
+    return c;
+}
+
+uint hash_uint2(const uint kx, const uint ky)
+{
+    uint a;
+    uint b;
+    uint c;
+    a = b = c = 0xdeadbeef + (2 << 2) + 13;
+
+    b += ky;
+    a += kx;
+    final(a, b, c);
+
+    return c;
 }
