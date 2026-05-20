@@ -38,7 +38,7 @@ mod lights;
 mod math;
 mod mesh;
 mod oidn;
-mod seam_optimizer;
+mod seams;
 mod sh;
 mod test;
 mod texture2d;
