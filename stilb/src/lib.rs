@@ -11,8 +11,6 @@ use crate::buffer::Buffer;
 use crate::compute_shader::{BakeSHPushConstants, load_bake_sh_shader, update_bake_sh_shader};
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
-use crate::math::Vector2;
-use crate::seam_optimizer::Seams;
 use crate::sh::SHProbe;
 use crate::{
     camera::Camera,
@@ -153,6 +151,7 @@ pub struct StilbConfig {
     pub coordinate_system: CoordinateSystem,
 
     pub is_preview: bool,
+    pub vulkan_validation_layers: bool, // todo add to unity
     pub throttle_preview_ms: u32,
     pub preview_settings: LightmapSettings,
 
@@ -642,6 +641,7 @@ fn bake_lightmaps(app: &mut Stilb) {
 
         for i in 0..app.groups.len() {
             let group_index = i as u32;
+            let bake_start_time = std::time::Instant::now();
 
             let group = &app.groups[i];
             let width = group.settings.width;
@@ -679,7 +679,9 @@ fn bake_lightmaps(app: &mut Stilb) {
                 }
             }
 
-            println!("lightmap baked");
+            let now = std::time::Instant::now();
+            let bake_time = now.duration_since(bake_start_time).as_secs_f32();
+            println!("bake complete in {}s", bake_time);
 
             unsafe {
                 app.vk.device.device_wait_idle().unwrap();
@@ -697,46 +699,10 @@ fn bake_lightmaps(app: &mut Stilb) {
 
             let mut pixels = diffuse.read_pixels(&app.vk);
 
-            // seam fixing
-            {
-                let cos_normal_threshold = 0.95;
-                let indices = &app.cpu_mesh.indices;
-
-                let mut positions = Vec::with_capacity(indices.len() * 3 * 3);
-                let mut texcoords = Vec::with_capacity(indices.len() * 3 * 2);
-
-                for i in &app.cpu_mesh.indices {
-                    let v = app.cpu_mesh.vertices[*i as usize].position;
-                    let uv = app.cpu_mesh.vertices[*i as usize].uv;
-
-                    positions.push(v.x);
-                    positions.push(v.y);
-                    positions.push(v.z);
-
-                    texcoords.push(uv.x);
-                    texcoords.push(1.0 - uv.y);
-                }
-
-                let seams = Seams::find(
-                    &mut positions,
-                    &mut texcoords,
-                    &mut pixels,
-                    width,
-                    height,
-                    cos_normal_threshold,
-                );
-                let lambda = 0.5;
-                seams.optimize(&mut pixels, lambda);
-            }
-
             if settings.denoise {
                 match &oidn {
                     Some(oidn) => {
-                        oidn.denoise(
-                            &mut pixels,
-                            settings.width as usize,
-                            settings.height as usize,
-                        );
+                        oidn.denoise(&mut pixels, width as usize, height as usize);
                     }
                     None => {}
                 }
@@ -747,8 +713,8 @@ fn bake_lightmaps(app: &mut Stilb) {
                 ty: 0,
                 pixels: pixels.as_ptr(),
                 pixels_count: pixels.len() as u32,
-                width: settings.width,
-                height: settings.height,
+                width,
+                height,
             };
 
             callback(readback_data);
@@ -1366,10 +1332,8 @@ impl LightmapGroup {
 
 impl Stilb {
     pub fn new(config: StilbConfig) -> Stilb {
-        let is_debug = cfg!(debug_assertions);
-
         let mut vulkan_config = VulkanConfig {
-            enable_validation_layers: is_debug,
+            enable_validation_layers: config.vulkan_validation_layers,
             enable_window: config.is_preview,
             window_extensions: Vec::new(),
         };

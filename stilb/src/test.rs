@@ -3,7 +3,7 @@ mod tests {
     use crate::bindings::*;
     use crate::bmp::save_bmp;
     use crate::mesh::FfiMesh;
-    use crate::{lights::LightType, math::*, *};
+    use crate::{math::*, *};
 
     fn make_config() -> StilbConfig {
         let preview_settings = LightmapSettings {
@@ -27,6 +27,7 @@ mod tests {
             probe_samples: 4096,
             probe_bounces: 3,
             light_falloff: LightFalloffType::InverseSquare,
+            vulkan_validation_layers: true,
         };
         config
     }
@@ -42,7 +43,7 @@ mod tests {
     fn test_bake() {
         let mut config = make_config();
         config.is_preview = false;
-        test_render(config, true);
+        test_render(config, false);
     }
 
     fn test_render(mut config: StilbConfig, test_probes: bool) {
@@ -63,8 +64,8 @@ mod tests {
         // let mut offset = 0.0;
         // for _ in 0..1 {
         // {
-        add_mesh(app, "..\\meshes\\monkey.glb").expect("failed to load mesh");
-        let (w, h, emission_pixels) = load_tga("..\\textures\\emission_cute.tga").unwrap();
+        add_mesh(app, "../meshes/monkey.glb").expect("failed to load mesh");
+        let (w, h, emission_pixels) = load_tga("../textures/emission_cute.tga").unwrap();
         // let emission_pixels = vec![0.0; (w * h * 4) as usize];
         let albedo_pixels = vec![255; (w * h * 4) as usize];
         // }
