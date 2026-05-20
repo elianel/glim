@@ -299,20 +299,43 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], sa
         VectorX::new(total_pixels),
     ];
 
-    let edge_constraint_weight = 0.001;
+    let edge_constraint_weight = 5.0;
+    let tolerance = 0.001;
+    let iterations = 100;
 
     setup_least_squares(
         width,
         height,
         edge_constraint_weight,
         &sample_points,
-        pixel_info,
+        &pixel_info,
         self_pixel_map,
         other_pixel_map,
         &mut at_a,
         &mut at_bs,
         &mut guesses,
     );
+
+    let solution0 =
+        conjugate_gradient_optimize(&mut at_a, &guesses[0], &at_bs[0], iterations, tolerance);
+    let solution1 =
+        conjugate_gradient_optimize(&mut at_a, &guesses[1], &at_bs[1], iterations, tolerance);
+    let solution2 =
+        conjugate_gradient_optimize(&mut at_a, &guesses[2], &at_bs[2], iterations, tolerance);
+
+    let solutions = [solution0, solution1, solution2];
+
+    let width = width as i32;
+
+    for i in 0..total_pixels {
+        let pixel = &pixel_info[i];
+        let r = solutions[0][i];
+        let g = solutions[1][i];
+        let b = solutions[2][i];
+        pixels[((pixel.position.y * width + pixel.position.x) as usize) * 4 + 0] = r;
+        pixels[((pixel.position.y * width + pixel.position.x) as usize) * 4 + 1] = g;
+        pixels[((pixel.position.y * width + pixel.position.x) as usize) * 4 + 2] = b;
+    }
 }
 
 fn bilinear_sample(
@@ -356,7 +379,7 @@ fn setup_least_squares(
     height: u32,
     edge_constraint_weight: f32,
     sample_points: &[SamplePoint],
-    pixel_info: Vec<PixelInfo>,
+    pixel_info: &[PixelInfo],
     self_pixel_map: HashMap<Vector2Int, usize>,
     other_pixel_map: HashMap<Vector2Int, usize>,
     at_a: &mut SparseMat,
@@ -442,6 +465,53 @@ fn setup_least_squares(
         guesses[1][i] = pixel.color.y;
         guesses[2][i] = pixel.color.z;
     }
+}
+
+pub fn conjugate_gradient_optimize(
+    a: &SparseMat,
+    guess: &VectorX,
+    b: &VectorX,
+    num_iterations: usize,
+    tolerance: f32,
+) -> VectorX {
+    let n = guess.size();
+
+    let mut p = VectorX::new(n);
+    let mut r = VectorX::new(n);
+    let mut ap = VectorX::new(n);
+    let mut tmp = VectorX::new(n);
+    let mut x = VectorX::new(n);
+
+    x.copy_from(guess);
+
+    SparseMat::mul(&mut tmp, a, &x);
+    VectorX::sub(&mut r, b, &tmp);
+
+    p.copy_from(&r);
+    let mut rsq = VectorX::dot(&r, &r);
+
+    for _ in 0..num_iterations {
+        SparseMat::mul(&mut ap, a, &p);
+
+        let alpha = rsq / VectorX::dot(&p, &ap);
+
+        x.add_scaled(&p, alpha);
+        r.add_scaled(&ap, -alpha);
+
+        let rsq_new = VectorX::dot(&r, &r);
+
+        if (rsq_new - rsq).abs() < tolerance * (n as f32) {
+            break;
+        }
+
+        let beta = rsq_new / rsq;
+
+        p.mul_add_assign(beta, &r);
+
+        rsq = rsq_new;
+    }
+
+    x
 }
 
 #[derive(Clone, Default)]
@@ -586,6 +656,18 @@ impl VectorX {
     pub fn mul_add(out_vec: &mut VectorX, v: &VectorX, a: f32, b: &VectorX) {
         for i in 0..v.size() {
             out_vec[i] = v[i] * a + b[i];
+        }
+    }
+
+    pub fn add_scaled(&mut self, other: &VectorX, scale: f32) {
+        for i in 0..self.size() {
+            self.data[i] += other.data[i] * scale;
+        }
+    }
+
+    pub fn mul_add_assign(&mut self, scale: f32, other: &VectorX) {
+        for i in 0..self.size() {
+            self.data[i] = self.data[i] * scale + other.data[i];
         }
     }
 }
