@@ -135,11 +135,11 @@ pub fn find_seams(
                 let position0 = positions[e0.i0 as usize];
                 let position1 = positions[e0.i1 as usize];
 
-                let edge0_uv0 = uvs[e0.i0 as usize];
-                let edge0_uv1 = uvs[e0.i1 as usize];
+                let mut edge0_uv0 = uvs[e0.i0 as usize];
+                let mut edge0_uv1 = uvs[e0.i1 as usize];
 
-                let edge1_uv0 = uvs[e1.i0 as usize];
-                let edge1_uv1 = uvs[e1.i1 as usize];
+                let mut edge1_uv0 = uvs[e1.i0 as usize];
+                let mut edge1_uv1 = uvs[e1.i1 as usize];
 
                 debug_assert!(approx_eq_vec3(
                     positions[e0.i0 as usize],
@@ -157,6 +157,12 @@ pub fn find_seams(
                     normals[e0.i1 as usize],
                     normals[e1.i1 as usize]
                 ));
+
+                edge0_uv0.y = 1.0 - edge0_uv0.y;
+                edge0_uv1.y = 1.0 - edge0_uv1.y;
+
+                edge1_uv0.y = 1.0 - edge1_uv0.y;
+                edge1_uv1.y = 1.0 - edge1_uv1.y;
 
                 seams.push(Seam {
                     position0,
@@ -209,8 +215,8 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], sa
     }
 
     let mut pixel_info = Vec::new();
-    let mut self_pixel_map: HashMap<Vector2Int, i32> = HashMap::new();
-    let mut other_pixel_map: HashMap<Vector2Int, i32> = HashMap::new();
+    let mut self_pixel_map: HashMap<Vector2Int, usize> = HashMap::new();
+    let mut other_pixel_map: HashMap<Vector2Int, usize> = HashMap::new();
 
     for point in &sample_points {
         let uv_a = point.uv_a * Vector2::new(width as f32, width as f32) + Vector2::new(0.5, 0.5);
@@ -234,6 +240,10 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], sa
                 let g = pixels[pixel_index + 1];
                 let b = pixels[pixel_index + 2];
 
+                // pixels[pixel_index] = 0.0;
+                // pixels[pixel_index + 1] = 1.0;
+                // pixels[pixel_index + 2] = 0.0;
+
                 let color = Vector3::new(r, g, b);
 
                 pixel_info.push(PixelInfo {
@@ -241,7 +251,7 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], sa
                     color,
                 });
 
-                self_pixel_map.insert(pos_self, pixel_info.len() as i32 - 1);
+                self_pixel_map.insert(pos_self, pixel_info.len() - 1);
             }
 
             if !other_pixel_map.contains_key(&pos_other)
@@ -254,6 +264,10 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], sa
                 let g = pixels[pixel_index + 1];
                 let b = pixels[pixel_index + 2];
 
+                // pixels[pixel_index] = 1.0;
+                // pixels[pixel_index + 1] = 0.0;
+                // pixels[pixel_index + 2] = 0.0;
+
                 let color = Vector3::new(r, g, b);
 
                 pixel_info.push(PixelInfo {
@@ -261,7 +275,7 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], sa
                     color,
                 });
 
-                other_pixel_map.insert(pos_other, pixel_info.len() as i32 - 1);
+                other_pixel_map.insert(pos_other, pixel_info.len() - 1);
             }
         }
     }
@@ -271,4 +285,320 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], sa
         sample_points.len(),
         seams.len()
     );
+
+    let total_pixels = pixel_info.len();
+    let mut at_a = SparseMat::new(total_pixels, total_pixels);
+    let mut at_bs = [
+        VectorX::new(total_pixels),
+        VectorX::new(total_pixels),
+        VectorX::new(total_pixels),
+    ];
+    let mut guesses = [
+        VectorX::new(total_pixels),
+        VectorX::new(total_pixels),
+        VectorX::new(total_pixels),
+    ];
+
+    let edge_constraint_weight = 0.001;
+
+    setup_least_squares(
+        width,
+        height,
+        edge_constraint_weight,
+        &sample_points,
+        pixel_info,
+        self_pixel_map,
+        other_pixel_map,
+        &mut at_a,
+        &mut at_bs,
+        &mut guesses,
+    );
+}
+
+fn bilinear_sample(
+    pixel_map: &HashMap<Vector2Int, usize>,
+    sample: Vector2,
+    width: u32,
+    height: u32,
+    weight: f32,
+    ixs: &mut [usize; 4],
+    weights: &mut [f32; 4],
+) {
+    let truncu = sample.x as i32;
+    let truncv = sample.y as i32;
+
+    let xs = [truncu, truncu + 1, truncu + 1, truncu];
+    let ys = [truncv, truncv, truncv + 1, truncv + 1];
+
+    for i in 0..4 {
+        let x = xs[i].clamp(0, width as i32);
+        let y = ys[i].clamp(0, height as i32);
+
+        let key = Vector2Int { x, y };
+        ixs[i] = *pixel_map.get(&key).unwrap();
+    }
+
+    let frac_x = sample.x - truncu as f32;
+    let frac_y = sample.y - truncv as f32;
+
+    weights[0] = (1.0 - frac_x) * (1.0 - frac_y);
+    weights[1] = frac_x * (1.0 - frac_y);
+    weights[2] = frac_x * frac_y;
+    weights[3] = (1.0 - frac_x) * frac_y;
+
+    for i in 0..4 {
+        weights[i] *= weight;
+    }
+}
+
+fn setup_least_squares(
+    width: u32,
+    height: u32,
+    edge_constraint_weight: f32,
+    sample_points: &[SamplePoint],
+    pixel_info: Vec<PixelInfo>,
+    self_pixel_map: HashMap<Vector2Int, usize>,
+    other_pixel_map: HashMap<Vector2Int, usize>,
+    at_a: &mut SparseMat,
+    at_bs: &mut [VectorX],
+    guesses: &mut [VectorX],
+) {
+    let mut self_ixs = [0; 4];
+    let mut other_ixs = [0; 4];
+
+    let mut self_weight = [0.0; 4];
+    let mut other_weight = [0.0; 4];
+
+    for point in sample_points {
+        let scaled_uv_a =
+            point.uv_a * Vector2::new(width as f32, width as f32) + Vector2::new(0.5, 0.5);
+        let scaled_uv_b =
+            point.uv_b * Vector2::new(height as f32, height as f32) + Vector2::new(0.5, 0.5);
+
+        bilinear_sample(
+            &self_pixel_map,
+            scaled_uv_a,
+            width,
+            height,
+            edge_constraint_weight,
+            &mut self_ixs,
+            &mut self_weight,
+        );
+
+        bilinear_sample(
+            &other_pixel_map,
+            scaled_uv_b,
+            width,
+            height,
+            edge_constraint_weight,
+            &mut other_ixs,
+            &mut other_weight,
+        );
+
+        for i in 0..4 {
+            for j in 0..4 {
+                let val = at_a.get(self_ixs[i] as usize, self_ixs[j] as usize);
+                at_a.set(
+                    self_ixs[i] as usize,
+                    self_ixs[j] as usize,
+                    val + self_weight[i] * self_weight[j],
+                );
+
+                let val = at_a.get(other_ixs[i], other_ixs[j]);
+                at_a.set(
+                    other_ixs[i],
+                    other_ixs[j],
+                    val + other_weight[i] * other_weight[j],
+                );
+
+                let val = at_a.get(self_ixs[i] as usize, other_ixs[j]);
+                at_a.set(
+                    self_ixs[i] as usize,
+                    other_ixs[j],
+                    val - self_weight[i] * other_weight[j],
+                );
+
+                let val = at_a.get(other_ixs[i], self_ixs[j] as usize);
+                at_a.set(
+                    other_ixs[i],
+                    self_ixs[j] as usize,
+                    val - other_weight[i] * self_weight[j],
+                );
+            }
+        }
+    }
+
+    for i in 0..pixel_info.len() {
+        let pixel = &pixel_info[i];
+
+        let val = at_a.get(i, i);
+        at_a.set(i, i, val + 1.0);
+
+        at_bs[0][i] = pixel.color.x;
+        at_bs[1][i] = pixel.color.y;
+        at_bs[2][i] = pixel.color.z;
+
+        guesses[0][i] = pixel.color.x;
+        guesses[1][i] = pixel.color.y;
+        guesses[2][i] = pixel.color.z;
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Row {
+    pub size: usize,
+    pub capacity: usize,
+    pub coefficients: Vec<f32>,
+    pub indices: Vec<usize>,
+}
+
+impl Row {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn get(&mut self, column: usize) -> f32 {
+        let index = self.get_column_index_and_grow_if_needed(column);
+        self.coefficients[index]
+    }
+
+    pub fn set(&mut self, column: usize, value: f32) {
+        let index = self.get_column_index_and_grow_if_needed(column);
+        self.coefficients[index] = value;
+    }
+
+    fn grow(&mut self) {
+        self.capacity = if self.capacity == 0 {
+            16
+        } else {
+            self.capacity + self.capacity / 2
+        };
+        self.coefficients.resize(self.capacity, 0.0);
+        self.indices.resize(self.capacity, 0);
+    }
+
+    fn find_closest_index(&self, column_index: usize) -> usize {
+        for i in 0..self.size {
+            if self.indices[i] >= column_index {
+                return i;
+            }
+        }
+        self.size
+    }
+
+    fn get_column_index_and_grow_if_needed(&mut self, column: usize) -> usize {
+        let index = self.find_closest_index(column);
+
+        if self.size == 0 || index >= self.indices.len() || self.indices[index] != column {
+            if self.size == self.capacity {
+                self.grow();
+            }
+
+            let mut prev_coeff = 0.0;
+            let mut prev_index = column;
+            self.size += 1;
+
+            for i in index..self.size {
+                let tmp_coeff = self.coefficients[i];
+                let tmp_index = self.indices[i];
+                self.coefficients[i] = prev_coeff;
+                self.indices[i] = prev_index;
+                prev_coeff = tmp_coeff;
+                prev_index = tmp_index;
+            }
+        }
+        index
+    }
+}
+
+pub struct SparseMat {
+    pub rows: Vec<Row>,
+    pub num_rows: usize,
+    pub num_cols: usize,
+}
+
+impl SparseMat {
+    pub fn new(num_rows: usize, num_cols: usize) -> Self {
+        let rows = vec![Row::new(); num_rows];
+        SparseMat {
+            rows,
+            num_rows,
+            num_cols,
+        }
+    }
+
+    pub fn get(&mut self, row: usize, column: usize) -> f32 {
+        self.rows[row].get(column)
+    }
+
+    pub fn set(&mut self, row: usize, column: usize, value: f32) {
+        self.rows[row].set(column, value);
+    }
+
+    pub fn mul(out_vector: &mut VectorX, a: &SparseMat, x: &VectorX) {
+        for r in 0..a.num_rows {
+            out_vector[r] = Self::dot(x, &a.rows[r]);
+        }
+    }
+
+    fn dot(x: &VectorX, row: &Row) -> f32 {
+        let mut sum = 0.0;
+        for i in 0..row.size {
+            sum += x[row.indices[i]] * row.coefficients[i];
+        }
+        sum
+    }
+}
+
+pub struct VectorX {
+    pub data: Vec<f32>,
+}
+
+impl VectorX {
+    pub fn new(size: usize) -> Self {
+        VectorX {
+            data: vec![0.0; size],
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn copy_from(&mut self, other: &VectorX) {
+        self.data.clone_from_slice(&other.data);
+    }
+
+    pub fn sub(result: &mut VectorX, a: &VectorX, b: &VectorX) {
+        for i in 0..a.size() {
+            result[i] = a[i] - b[i];
+        }
+    }
+
+    pub fn dot(a: &VectorX, b: &VectorX) -> f32 {
+        let mut sum = 0.0;
+        for i in 0..a.size() {
+            sum += a[i] * b[i];
+        }
+        sum
+    }
+
+    pub fn mul_add(out_vec: &mut VectorX, v: &VectorX, a: f32, b: &VectorX) {
+        for i in 0..v.size() {
+            out_vec[i] = v[i] * a + b[i];
+        }
+    }
+}
+
+impl std::ops::Index<usize> for VectorX {
+    type Output = f32;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for VectorX {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.data[index]
+    }
 }
