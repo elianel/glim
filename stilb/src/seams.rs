@@ -7,36 +7,45 @@ use std::collections::{HashMap, HashSet};
 use crate::math::*;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Edge {
-    pub i0: u32,
-    pub i1: u32,
+struct Edge {
+    i0: u32,
+    i1: u32,
+    swapped: bool,
 }
 
 impl Edge {
     #[inline]
     fn new_sorted(i0: u32, i1: u32) -> Self {
         if i0 < i1 {
-            Self { i0, i1 }
+            Self {
+                i0,
+                i1,
+                swapped: false,
+            }
         } else {
-            Self { i0: i1, i1: i0 }
+            Self {
+                i0: i1,
+                i1: i0,
+                swapped: true,
+            }
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Seam {
-    pub position0: Vector3,
-    pub position1: Vector3,
-    pub edge0_uv0: Vector2,
-    pub edge1_uv0: Vector2,
-    pub edge0_uv1: Vector2,
-    pub edge1_uv1: Vector2,
+    position0: Vector3,
+    position1: Vector3,
+    edge0_uv0: Vector2,
+    edge1_uv0: Vector2,
+    edge0_uv1: Vector2,
+    edge1_uv1: Vector2,
 }
 
 #[derive(Debug, Clone)]
-pub struct SamplePoint {
-    pub uv_a: Vector2,
-    pub uv_b: Vector2,
+struct SamplePoint {
+    uv_a: Vector2,
+    uv_b: Vector2,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -46,7 +55,7 @@ struct Vector2Int {
 }
 
 impl Vector2Int {
-    pub fn new(x: i32, y: i32) -> Self {
+    fn new(x: i32, y: i32) -> Self {
         Self { x, y }
     }
 }
@@ -126,6 +135,7 @@ pub fn find_seams(
 
     let mut seam_edges = Vec::new();
 
+    // todo slow
     let mut seams = Vec::new();
     for i in 0..edges.len() {
         for j in (i + 1)..edges.len() {
@@ -168,6 +178,11 @@ pub fn find_seams(
 
                     edge1_uv0.y = 1.0 - edge1_uv0.y;
                     edge1_uv1.y = 1.0 - edge1_uv1.y;
+                }
+
+                if e0.swapped {
+                    std::mem::swap(&mut edge0_uv0, &mut edge1_uv0);
+                    std::mem::swap(&mut edge0_uv1, &mut edge1_uv1);
                 }
 
                 seams.push(Seam {
@@ -525,7 +540,7 @@ fn setup_least_squares(
     }
 }
 
-pub fn conjugate_gradient_optimize(
+fn conjugate_gradient_optimize(
     a: &SparseMat,
     guess: &VectorX,
     b: &VectorX,
