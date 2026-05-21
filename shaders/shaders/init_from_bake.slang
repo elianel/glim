@@ -102,5 +102,6 @@ static const float2 kJitterOffsets[25] = {
     [shader("fragment")] float4 fragment(Varyings varyings)
     : SV_Target
 {
-    return EncodeVisibilityBuffer(varyings.bary, varyings.primitiveID, true, false);
+    float2 bary = saturate(varyings.bary);
+    return EncodeVisibilityBuffer(bary, varyings.primitiveID, true, false);
 }

@@ -137,7 +137,7 @@ impl GraphicsShader {
         let mut conservative_raster_state =
             vk::PipelineRasterizationConservativeStateCreateInfoEXT {
                 conservative_rasterization_mode: vk::ConservativeRasterizationModeEXT::OVERESTIMATE,
-                extra_primitive_overestimation_size: 1.0,
+                extra_primitive_overestimation_size: 0.0,
                 ..Default::default()
             };
 
