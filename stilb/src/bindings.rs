@@ -1,9 +1,11 @@
-use std::slice;
-
-use ash::vk::Handle;
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    ptr::null_mut,
+    slice,
+};
 
 use crate::{
-    LightmapGroup, LightmapSettings, RenderTarget, Stilb, StilbConfig,
+    LightmapGroup, LightmapSettings, Stilb, StilbConfig,
     lights::Light,
     math::Vector3,
     mesh::{FfiMesh, Mesh},
@@ -11,38 +13,72 @@ use crate::{
     start_bake,
 };
 
+#[repr(u32)]
+pub enum ErrorCode {
+    Success = 0,
+    Error = 1,
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn app_new(config: StilbConfig) -> *mut Stilb {
-    let app = Stilb::new(config);
-    Box::into_raw(Box::new(app))
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let app = Stilb::new(config.clone());
+        Box::into_raw(Box::new(app))
+    }));
+
+    match result {
+        Ok(val) => val,
+        Err(_) => null_mut() as *mut Stilb,
+    }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_add_mesh(app: *mut Stilb, mesh: FfiMesh) {
-    let app = unsafe { &mut *app };
+pub extern "C" fn app_add_mesh(app: *mut Stilb, mesh: FfiMesh) -> ErrorCode {
+    if app.is_null() {
+        return ErrorCode::Error;
+    }
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let app = unsafe { &mut *app };
 
-    Mesh::append_ffi_mesh(
-        &mut app.cpu_mesh,
-        mesh,
-        app.config.coordinate_system,
-        &mut app.seams,
-    );
+        Mesh::append_ffi_mesh(
+            &mut app.cpu_mesh,
+            mesh,
+            app.config.coordinate_system,
+            &mut app.seams,
+        );
+    }));
+
+    match result {
+        Ok(_) => ErrorCode::Success,
+        Err(_) => ErrorCode::Error,
+    }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_add_light(app: *mut Stilb, mut light: Light) {
-    let app = unsafe { &mut *app };
+pub extern "C" fn app_add_light(app: *mut Stilb, mut light: Light) -> ErrorCode {
+    if app.is_null() {
+        return ErrorCode::Error;
+    }
 
-    let system = app.config.coordinate_system;
-    light.position.transform_space(system);
-    light.direction.transform_space(system);
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let app = unsafe { &mut *app };
 
-    light.direction = Vector3::ZERO - light.direction;
+        let system = app.config.coordinate_system;
+        light.position.transform_space(system);
+        light.direction.transform_space(system);
 
-    // todo:
-    light.shadow_radius_or_angle = light.shadow_radius_or_angle.max(0.001);
+        light.direction = Vector3::ZERO - light.direction;
 
-    app.cpu_lights.push(light);
+        // todo:
+        light.shadow_radius_or_angle = light.shadow_radius_or_angle.max(0.001);
+
+        app.cpu_lights.push(light);
+    }));
+
+    match result {
+        Ok(_) => ErrorCode::Success,
+        Err(_) => ErrorCode::Error,
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -53,98 +89,108 @@ pub extern "C" fn app_add_lightmap_group(
     albedo_pixels_length: u32,
     emission_pixels: *const f32,
     emission_pixels_length: u32,
-) {
-    let app = unsafe { &mut *app };
+) -> ErrorCode {
+    if app.is_null() {
+        return ErrorCode::Error;
+    }
 
-    let emission_pixels =
-        unsafe { slice::from_raw_parts(emission_pixels, emission_pixels_length as usize) };
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let app = unsafe { &mut *app };
 
-    let albedo_pixels =
-        unsafe { slice::from_raw_parts(albedo_pixels, albedo_pixels_length as usize) };
+        let emission_pixels =
+            unsafe { slice::from_raw_parts(emission_pixels, emission_pixels_length as usize) };
 
-    let group = LightmapGroup::new(app, settings, albedo_pixels, emission_pixels);
-    app.groups.push(group);
+        let albedo_pixels =
+            unsafe { slice::from_raw_parts(albedo_pixels, albedo_pixels_length as usize) };
+
+        let group = LightmapGroup::new(app, settings, albedo_pixels, emission_pixels);
+        app.groups.push(group);
+    }));
+
+    match result {
+        Ok(_) => ErrorCode::Success,
+        Err(_) => ErrorCode::Error,
+    }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_run(app: *mut Stilb) {
-    let app = unsafe { &mut *app };
-    start_bake(app);
+pub extern "C" fn app_run(app: *mut Stilb) -> ErrorCode {
+    if app.is_null() {
+        return ErrorCode::Error;
+    }
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let app = unsafe { &mut *app };
+        start_bake(app);
+    }));
+
+    match result {
+        Ok(_) => ErrorCode::Success,
+        Err(_) => ErrorCode::Error,
+    }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3) {
-    let app = unsafe { &mut *app };
+pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3) -> ErrorCode {
+    if app.is_null() {
+        return ErrorCode::Error;
+    }
 
-    let system = app.config.coordinate_system;
-    position.transform_space(system);
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let app = unsafe { &mut *app };
 
-    let probe = SHProbe {
-        position,
-        pad0: 0,
-        l0: Vector3::ZERO,
-        pad1: 0,
-        l1_1: Vector3::ZERO,
-        pad2: 0,
-        l10: Vector3::ZERO,
-        pad3: 0,
-        l11: Vector3::ZERO,
-        pad4: 0,
-        l2_2: Vector3::ZERO,
-        pad5: 0,
-        l2_1: Vector3::ZERO,
-        pad6: 0,
-        l20: Vector3::ZERO,
-        pad7: 0,
-        l21: Vector3::ZERO,
-        pad8: 0,
-        l22: Vector3::ZERO,
-        pad9: 0,
-    };
+        let system = app.config.coordinate_system;
+        position.transform_space(system);
 
-    app.probes.push(probe);
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn app_destroy(app: *mut Stilb) {
-    if !app.is_null() {
-        // Take ownership back from the pointer and let Box drop it
-        let mut app = unsafe { Box::from_raw(app) };
-
-        for group in &mut app.groups {
-            group.destroy(&app.vk);
-        }
-
-        if let RenderTarget::NonDirectional {
-            visibility,
-            diffuse,
-        } = &mut app.render_target
-        {
-            visibility.destroy(&app.vk);
-            diffuse.destroy(&app.vk);
+        let probe = SHProbe {
+            position,
+            pad0: 0,
+            l0: Vector3::ZERO,
+            pad1: 0,
+            l1_1: Vector3::ZERO,
+            pad2: 0,
+            l10: Vector3::ZERO,
+            pad3: 0,
+            l11: Vector3::ZERO,
+            pad4: 0,
+            l2_2: Vector3::ZERO,
+            pad5: 0,
+            l2_1: Vector3::ZERO,
+            pad6: 0,
+            l20: Vector3::ZERO,
+            pad7: 0,
+            l21: Vector3::ZERO,
+            pad8: 0,
+            l22: Vector3::ZERO,
+            pad9: 0,
         };
 
-        if !app.bake_shader.pipeline.is_null() {
-            app.bake_shader.destroy(&app.vk);
+        app.probes.push(probe);
+    }));
+
+    match result {
+        Ok(_) => ErrorCode::Success,
+        Err(_) => ErrorCode::Error,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn app_destroy(app: *mut Stilb) -> ErrorCode {
+    if app.is_null() {
+        return ErrorCode::Error;
+    }
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        if !app.is_null() {
+            // Take ownership back from the pointer and let Box drop it
+            let mut _app = unsafe { Box::from_raw(app) };
+
+            println!("App destroyed ");
         }
-        app.gpu_mesh.destroy(&app.vk);
-        app.tlas.destroy(&app.vk);
+    }));
 
-        if !app.init_from_camera_shader.pipeline.is_null() {
-            app.init_from_camera_shader.destroy(&app.vk);
-        }
-
-        if !app.gpu_lights.buffer.is_null() {
-            app.gpu_lights.destroy(&app.vk);
-        }
-
-        if !app.probes_buffer.buffer.is_null() {
-            app.probes_buffer.destroy(&app.vk);
-            app.bake_probes_shader.destroy(&app.vk);
-        }
-
-        unsafe { app.vk.device.destroy_sampler(app.texture_sampler, None) };
-
-        println!("App destroyed");
+    match result {
+        Ok(_) => ErrorCode::Success,
+        Err(_) => ErrorCode::Error,
     }
 }

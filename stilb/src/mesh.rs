@@ -1,7 +1,7 @@
 use ash::vk::{self, Handle};
 
 use crate::{
-    CoordinateSystem, Stilb,
+    CoordinateSystem,
     buffer::Buffer,
     math::*,
     seams::{Seam, find_seams},

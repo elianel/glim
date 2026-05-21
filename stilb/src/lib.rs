@@ -80,6 +80,44 @@ pub struct Stilb {
     pub render_target: RenderTarget,
 }
 
+impl Drop for Stilb {
+    fn drop(&mut self) {
+        for group in &mut self.groups {
+            group.destroy(&self.vk);
+        }
+
+        if let RenderTarget::NonDirectional {
+            visibility,
+            diffuse,
+        } = &mut self.render_target
+        {
+            visibility.destroy(&self.vk);
+            diffuse.destroy(&self.vk);
+        };
+
+        if !self.bake_shader.pipeline.is_null() {
+            self.bake_shader.destroy(&self.vk);
+        }
+        self.gpu_mesh.destroy(&self.vk);
+        self.tlas.destroy(&self.vk);
+
+        if !self.init_from_camera_shader.pipeline.is_null() {
+            self.init_from_camera_shader.destroy(&self.vk);
+        }
+
+        if !self.gpu_lights.buffer.is_null() {
+            self.gpu_lights.destroy(&self.vk);
+        }
+
+        if !self.probes_buffer.buffer.is_null() {
+            self.probes_buffer.destroy(&self.vk);
+            self.bake_probes_shader.destroy(&self.vk);
+        }
+
+        unsafe { self.vk.device.destroy_sampler(self.texture_sampler, None) };
+    }
+}
+
 pub enum RenderTarget {
     NonDirectional {
         visibility: Texture2D,

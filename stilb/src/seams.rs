@@ -1,3 +1,6 @@
+// todo seams with different lightmap groups
+// split meshes by group
+
 use std::collections::{HashMap, HashSet};
 
 use crate::math::*;
@@ -414,9 +417,10 @@ fn bilinear_sample(
     let ys = [truncv, truncv, truncv + 1, truncv + 1];
 
     for i in 0..4 {
-        let x = xs[i].clamp(0, width as i32);
-        let y = ys[i].clamp(0, height as i32);
+        let x = xs[i].clamp(0, width as i32 - 1);
+        let y = ys[i].clamp(0, height as i32 - 1);
 
+        // todo something fails here
         let key = Vector2Int { x, y };
         ixs[i] = *pixel_map.get(&key).unwrap();
     }
