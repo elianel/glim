@@ -1,24 +1,41 @@
 // expose seam fix parameters
 // todo license https://gist.github.com/ssylvan/18fb6875824c14aa2b8c
 
-use std::collections::{HashMap, HashSet};
-
 use crate::math::*;
+use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct Edge {
-    i0: u32,
-    i1: u32,
+    a: u32,
+    b: u32,
+}
+
+impl PartialEq for Edge {
+    fn eq(&self, other: &Self) -> bool {
+        (self.a == other.a && self.b == other.b) || (self.a == other.b && self.b == other.a)
+    }
+}
+
+impl Eq for Edge {}
+
+impl Hash for Edge {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let (a, b) = if self.a < self.b {
+            (self.a, self.b)
+        } else {
+            (self.b, self.a)
+        };
+
+        a.hash(state);
+        b.hash(state);
+    }
 }
 
 impl Edge {
     #[inline]
-    fn new_sorted(i0: u32, i1: u32) -> Self {
-        if i0 < i1 {
-            Self { i0, i1 }
-        } else {
-            Self { i0: i1, i1: i0 }
-        }
+    fn new(a: u32, b: u32) -> Self {
+        Self { a, b }
     }
 }
 
@@ -75,28 +92,26 @@ pub fn find_seams(
     flip_uv_y: bool,
     group: u32,
 ) -> Vec<Seam> {
-    let mut edges = HashSet::new();
+    let is_seam = |e0: &Edge, e1: &Edge| -> bool {
+        let pa0 = positions[e0.a as usize];
+        let na0 = normals[e0.a as usize];
+        let uva0 = uvs[e0.a as usize];
 
-    let is_seam = |a: &Edge, b: &Edge| -> bool {
-        let pa0 = positions[a.i0 as usize];
-        let na0 = normals[a.i0 as usize];
-        let uva0 = uvs[a.i0 as usize];
-
-        let pb0 = positions[b.i0 as usize];
-        let nb0 = normals[b.i0 as usize];
-        let uvb0 = uvs[b.i0 as usize];
+        let pb0 = positions[e1.a as usize];
+        let nb0 = normals[e1.a as usize];
+        let uvb0 = uvs[e1.a as usize];
 
         let positions_equal = approx_eq_vec3(pa0, pb0);
         let normals_equal = approx_eq_vec3(na0, nb0);
         let uvs_equal = approx_eq_vec2(uva0, uvb0);
 
         if positions_equal && normals_equal && !uvs_equal {
-            let pa1 = positions[a.i1 as usize];
-            let na1 = normals[a.i1 as usize];
-            let uva1 = uvs[a.i1 as usize];
-            let pb1 = positions[b.i1 as usize];
-            let nb1 = normals[b.i1 as usize];
-            let uvb1 = uvs[b.i1 as usize];
+            let pa1 = positions[e0.b as usize];
+            let na1 = normals[e0.b as usize];
+            let uva1 = uvs[e0.b as usize];
+            let pb1 = positions[e1.b as usize];
+            let nb1 = normals[e1.b as usize];
+            let uvb1 = uvs[e1.b as usize];
 
             let positions_equal = approx_eq_vec3(pa1, pb1);
             let normals_equal = approx_eq_vec3(na1, nb1);
@@ -107,17 +122,17 @@ pub fn find_seams(
             }
         }
 
-        let positions_equal = approx_eq_vec3(pa0, positions[b.i1 as usize]);
-        let normals_equal = approx_eq_vec3(na0, normals[b.i1 as usize]);
-        let uvs_equal = approx_eq_vec2(uva0, uvs[b.i1 as usize]);
+        let positions_equal = approx_eq_vec3(pa0, positions[e1.b as usize]);
+        let normals_equal = approx_eq_vec3(na0, normals[e1.b as usize]);
+        let uvs_equal = approx_eq_vec2(uva0, uvs[e1.b as usize]);
 
         if positions_equal && normals_equal && !uvs_equal {
-            let pa1 = positions[a.i1 as usize];
-            let na1 = normals[a.i1 as usize];
-            let uva1 = uvs[a.i1 as usize];
-            let positions_equal = approx_eq_vec3(pa1, positions[b.i0 as usize]);
-            let normals_equal = approx_eq_vec3(na1, normals[b.i0 as usize]);
-            let uvs_equal = approx_eq_vec2(uva1, uvs[b.i0 as usize]);
+            let pa1 = positions[e0.b as usize];
+            let na1 = normals[e0.b as usize];
+            let uva1 = uvs[e0.b as usize];
+            let positions_equal = approx_eq_vec3(pa1, positions[e1.a as usize]);
+            let normals_equal = approx_eq_vec3(na1, normals[e1.a as usize]);
+            let uvs_equal = approx_eq_vec2(uva1, uvs[e1.a as usize]);
             if positions_equal && normals_equal && !uvs_equal {
                 return true;
             }
@@ -126,15 +141,17 @@ pub fn find_seams(
         false
     };
 
+    let mut edges = HashSet::new();
+
     let mut i = 0;
     while i + 2 < indices.len() {
         let i0 = indices[i + 0];
         let i1 = indices[i + 1];
         let i2 = indices[i + 2];
 
-        edges.insert(Edge::new_sorted(i0, i1));
-        edges.insert(Edge::new_sorted(i1, i2));
-        edges.insert(Edge::new_sorted(i2, i0));
+        edges.insert(Edge::new(i0, i1));
+        edges.insert(Edge::new(i1, i2));
+        edges.insert(Edge::new(i2, i0));
 
         i += 3;
     }
@@ -147,15 +164,26 @@ pub fn find_seams(
     let mut seams = Vec::new();
     for i in 0..edges.len() {
         for j in (i + 1)..edges.len() {
-            let e0 = &edges[i];
-            let e1 = &edges[j];
+            let mut e0 = edges[i].clone();
+            let mut e1 = edges[j].clone();
 
-            if is_seam(e0, e1) {
-                let mut edge0_uv0 = uvs[e0.i0 as usize];
-                let mut edge0_uv1 = uvs[e0.i1 as usize];
+            if e0.a > e0.b {
+                std::mem::swap(&mut e0.a, &mut e0.b);
+            }
+            if e1.a > e1.b {
+                std::mem::swap(&mut e1.a, &mut e1.b);
+            }
 
-                let mut edge1_uv0 = uvs[e1.i0 as usize];
-                let mut edge1_uv1 = uvs[e1.i1 as usize];
+            if is_seam(&e0, &e1) {
+                let mut edge0_uv0 = uvs[e0.a as usize];
+                let mut edge0_uv1 = uvs[e0.b as usize];
+                let edge0_p0 = positions[e0.a as usize];
+                let edge0_p1 = positions[e0.b as usize];
+
+                let mut edge1_uv0 = uvs[e1.a as usize];
+                let mut edge1_uv1 = uvs[e1.b as usize];
+                let edge1_p0 = positions[e1.a as usize];
+                let edge1_p1 = positions[e1.b as usize];
 
                 if flip_uv_y {
                     edge0_uv0.y = 1.0 - edge0_uv0.y;
@@ -166,11 +194,13 @@ pub fn find_seams(
                 }
 
                 let seam_dir = (edge0_uv0 - edge1_uv0).normalize();
-
                 if seam_dir.dot(reference_dir) < 0.0 {
                     std::mem::swap(&mut edge0_uv0, &mut edge1_uv0);
                     std::mem::swap(&mut edge0_uv1, &mut edge1_uv1);
                 }
+
+                debug_assert!(approx_eq_vec3(edge0_p0, edge1_p0));
+                debug_assert!(approx_eq_vec3(edge0_p1, edge1_p1));
 
                 seams.push(Seam {
                     edge0_uv0,
