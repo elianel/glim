@@ -92,7 +92,7 @@ pub fn find_seams(
     flip_uv_y: bool,
     group: u32,
 ) -> Vec<Seam> {
-    let is_seam = |e0: &Edge, e1: &Edge| -> bool {
+    let is_seam = |e0: &Edge, e1: &Edge| -> u8 {
         let pa0 = positions[e0.a as usize];
         let na0 = normals[e0.a as usize];
         let uva0 = uvs[e0.a as usize];
@@ -118,7 +118,7 @@ pub fn find_seams(
             let uvs_equal = approx_eq_vec2(uva1, uvb1);
 
             if positions_equal && normals_equal && !uvs_equal {
-                return true;
+                return 1;
             }
         }
 
@@ -134,11 +134,11 @@ pub fn find_seams(
             let normals_equal = approx_eq_vec3(na1, normals[e1.a as usize]);
             let uvs_equal = approx_eq_vec2(uva1, uvs[e1.a as usize]);
             if positions_equal && normals_equal && !uvs_equal {
-                return true;
+                return 2;
             }
         }
 
-        false
+        0
     };
 
     let mut edges = HashSet::new();
@@ -174,7 +174,13 @@ pub fn find_seams(
                 std::mem::swap(&mut e1.a, &mut e1.b);
             }
 
-            if is_seam(&e0, &e1) {
+            let seam = is_seam(&e0, &e1);
+
+            if seam != 0 {
+                if seam == 2 {
+                    std::mem::swap(&mut e0.a, &mut e0.b);
+                }
+
                 let mut edge0_uv0 = uvs[e0.a as usize];
                 let mut edge0_uv1 = uvs[e0.b as usize];
                 let edge0_p0 = positions[e0.a as usize];
