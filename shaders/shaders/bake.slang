@@ -153,7 +153,7 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     // direct light
     float2 xiLight = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
 
-    uint hits = 0;
+    uint validHits = 0;
     // todo count direct light hits
 
     for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
@@ -210,14 +210,14 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 
             bounceRay.P = RayOffset(surfaceBounce.P, surfaceBounce.Ng);
             bounceRay.D = RandomDirectionInHemisphere(surfaceBounce.N, xiBounce);
-            hits++;
+            validHits++;
         }
         else
         {
-            hits++;
+            validHits++;
             break;
         }
     }
 
-    AccumulateColor(LightmapDiffuse, coords, sampleIndex, float4(spectrum.color, hits));
+    AccumulateColor(LightmapDiffuse, coords, sampleIndex, float4(spectrum.color, validHits));
 }

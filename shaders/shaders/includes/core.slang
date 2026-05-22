@@ -202,13 +202,7 @@ void AccumulateColor(RWTexture2D<float4> tex, uint2 coords, uint sample, float4 
         float4 previousColor = LightmapDiffuse[coords];
 
         float weight = 1.0 / (float(sample) + 1.0);
-        float4 accumulatedColor = 1;
-        accumulatedColor.rgb = lerp(previousColor.rgb, color.rgb, weight);
-        accumulatedColor.a = previousColor.a + color.a;
-        if (sample == 0)
-        {
-            accumulatedColor.a = color.a;
-        }
+        float4 accumulatedColor = lerp(previousColor, color, weight);
 
         tex[coords] = accumulatedColor;
     }
@@ -338,6 +332,7 @@ float4 AdjustSamplePositions(Surface surface, float4 visibility)
     float3 worldTexelU = dPdU * texelSizeUV.x;
     float3 worldTexelV = dPdV * texelSizeUV.y;
 
+    // some ideas from https://ndotl.wordpress.com/2018/08/29/baking-artifact-free-lightmaps/
     float rayLength = (length(worldTexelU) + length(worldTexelV)) * (sqrt(2.0) / 2.0);
 
     float3 u = normalize(worldTexelU - dot(worldTexelU, surface.Ng) * surface.Ng);

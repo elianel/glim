@@ -227,7 +227,7 @@ pub fn find_seams(
 }
 
 // todo slow
-pub fn dilate(pixels: &mut [f32], width: u32, height: u32) {
+pub fn dilate(pixels: &mut [f32], width: u32, height: u32, valid_threshold: f32) {
     let w = width as usize;
     let h = height as usize;
 
@@ -240,7 +240,7 @@ pub fn dilate(pixels: &mut [f32], width: u32, height: u32) {
             for x in 0..w {
                 let idx = (y * w + x) * 4;
 
-                if prev[idx + 3] > 0.0 {
+                if prev[idx + 3] > valid_threshold {
                     continue;
                 }
 
@@ -261,7 +261,7 @@ pub fn dilate(pixels: &mut [f32], width: u32, height: u32) {
                         continue;
                     }
                     let nidx = (ny * w + nx) * 4;
-                    if prev[nidx + 3] > 0.0 {
+                    if prev[nidx + 3] > valid_threshold {
                         r += prev[nidx];
                         g += prev[nidx + 1];
                         b += prev[nidx + 2];

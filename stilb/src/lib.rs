@@ -791,7 +791,8 @@ fn bake_lightmaps(app: &mut Stilb) {
             if settings.dilate {
                 let start_time = std::time::Instant::now();
 
-                dilate(&mut pixels, width, height);
+                let texel_validity = 0.9;
+                dilate(&mut pixels, width, height, 1.0 - texel_validity);
 
                 let now = std::time::Instant::now();
                 let elapsed = now.duration_since(start_time).as_secs_f32();
