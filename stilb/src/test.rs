@@ -69,18 +69,14 @@ mod tests {
         // for _ in 0..1 {
         // {
         // add_mesh(app, "../meshes/monkey.glb").expect("failed to load mesh");
-        // add_mesh(app, "../meshes/random.glb").expect("failed to load mesh");
+        add_mesh(app, "../meshes/random.glb", false, false, Vector3::ZERO, 0)
+            .expect("failed to load mesh");
         // let (w, h, emission_pixels) = load_tga("../textures/emission_cute.tga").unwrap();
-        // let w = 512;
-        // let h = 512;
-        // let emission_pixels = vec![0.0; (w * h * 4) as usize];
-        // let albedo_pixels = vec![255; (w * h * 4) as usize];
-        // }
-
-        // flower
-        add_mesh(app, "../meshes/flower.glb", true).expect("failed to load mesh");
-        let (w, h, albedo_pixels) = load_tga_u8("../textures/flower.tga").unwrap();
+        let w = 512;
+        let h = 512;
         let emission_pixels = vec![0.0; (w * h * 4) as usize];
+        let albedo_pixels = vec![255; (w * h * 4) as usize];
+        // }
 
         app_add_light(
             app,
@@ -148,6 +144,20 @@ mod tests {
 
         app_add_lightmap_group(
             app,
+            settings.clone(),
+            albedo_pixels.as_ptr(),
+            albedo_pixels.len() as u32,
+            emission_pixels.as_ptr(),
+            emission_pixels.len() as u32,
+        );
+
+        // flower
+        add_mesh(app, "../meshes/flower.glb", true, true, Vector3::ZERO, 1)
+            .expect("failed to load mesh");
+        let (w, h, albedo_pixels) = load_tga_u8("../textures/flower.tga").unwrap();
+        let emission_pixels = vec![0.0; (w * h * 4) as usize];
+        app_add_lightmap_group(
+            app,
             settings,
             albedo_pixels.as_ptr(),
             albedo_pixels.len() as u32,
@@ -192,7 +202,14 @@ mod tests {
         Ok((width, height, pixels))
     }
 
-    pub fn add_mesh(app: *mut Stilb, path: &str, flip_uv: bool) -> std::io::Result<()> {
+    pub fn add_mesh(
+        app: *mut Stilb,
+        path: &str,
+        flip_uv: bool,
+        transparent: bool,
+        position_offset: Vector3,
+        group: u32,
+    ) -> std::io::Result<()> {
         let (document, buffers, _) =
             gltf::import(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
@@ -207,7 +224,7 @@ mod tests {
 
                 if let Some(iter) = reader.read_positions() {
                     for p in iter {
-                        let v = Vector3::new(p[0], p[1], p[2]);
+                        let v = Vector3::new(p[0], p[1], p[2]) + position_offset;
                         vertices.push(v);
                     }
                 }
@@ -250,9 +267,9 @@ mod tests {
                     indices: indices.as_ptr(),
                     vertices_length: vertices.len() as u32,
                     indices_length: indices.len() as u32,
-                    lightmap_group: 0,
+                    lightmap_group: group,
                     backface_gi: false,
-                    transparent: true,
+                    transparent,
                 };
                 app_add_mesh(app, mesh);
             }

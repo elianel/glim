@@ -103,5 +103,6 @@ static const float2 kJitterOffsets[25] = {
     : SV_Target
 {
     float2 bary = saturate(varyings.bary);
+    // todo sample alpha here
     return EncodeVisibilityBuffer(bary, varyings.primitiveID, true, false);
 }

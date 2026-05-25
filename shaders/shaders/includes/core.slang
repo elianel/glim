@@ -36,11 +36,6 @@ EncodeVisibilityBuffer(float2 bary, uint primitiveID, bool isVisible, bool useSm
     return float4(bary, asfloat(primitiveID), asfloat(encoded));
 }
 
-// Surface GetSurface<let T : uint>(RayQuery<T> query, RayDesc ray)
-// {
-//     return GetSurface(query.CommittedPrimitiveIndex(), query.CommittedTriangleBarycentrics());
-// }
-
 void QueryHandleAlpha<let T : uint>(inout RayQuery<T> query)
 {
     if (query.CandidateType() != CANDIDATE_NON_OPAQUE_TRIANGLE)

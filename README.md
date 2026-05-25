@@ -1,9 +1,9 @@
 # Todo
 
 ## Priority
-- [ ] Alpha test
 - [ ] Spot lights
 - [ ] Spot light cookie with default unity cookie
+- [ ] High resolution alpha
 - [ ] UV Packing with scale offset
 - [ ] Adjust sample positions
 - [ ] Directional lightmaps
@@ -29,6 +29,7 @@
 - [ ] Match shadow radius
 
 # Complete
+- [x] Alpha test
 - [x] Conservative rasterization
 - [x] Return codes for bake success, fail, cancel
 - [x] Better panic handling

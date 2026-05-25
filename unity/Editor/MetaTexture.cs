@@ -170,7 +170,15 @@ namespace stilb
 
                             _metaAlphaMat.SetTexture(_MainTex, mat.mainTexture);
                             _metaAlphaMat.SetColor(_Color, mat.color);
-                            _metaAlphaMat.SetFloat(_Cutoff, mat.GetFloat(_Cutoff));
+                            string renderType = mat.GetTag("RenderType", false, "");
+                            if (_metaAlphaMat.HasProperty(_Cutoff) && renderType == "TransparentCutout")
+                            {
+                                _metaAlphaMat.SetFloat(_Cutoff, mat.GetFloat(_Cutoff));
+                            }
+                            else
+                            {
+                                _metaAlphaMat.SetFloat(_Cutoff, 0.5f);
+                            }
                             _metaAlphaMat.SetTextureOffset(_MainTex, mat.mainTextureOffset);
                             _metaAlphaMat.SetTextureScale(_MainTex, mat.mainTextureScale);
                             cmd.DrawRenderer(renderer, _metaAlphaMat, submeshIndex, 0);
