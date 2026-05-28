@@ -17,7 +17,7 @@ use crate::sh::SHProbe;
 use crate::{
     camera::Camera,
     compute_shader::{
-        BakePushConstants, ComputeShader, load_init_from_camera_shader, load_preview_shader,
+        ComputeShader, PreviewPushConstants, load_init_from_camera_shader, load_preview_shader,
         update_init_from_camera_shader, update_preview_shader,
     },
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
@@ -75,10 +75,10 @@ pub struct Stilb {
 
     pub texture_sampler: vk::Sampler,
 
-    pub push: BakePushConstants,
+    pub preview_push_constants: PreviewPushConstants,
 
     pub probes: Vec<SHProbe>,
-    pub push_probes: BakeSHPushConstants,
+
     pub probes_buffer: Buffer,
     pub bake_probes_shader: ComputeShader,
 
@@ -137,10 +137,13 @@ pub enum RenderTarget {
 
 pub struct LightmapGroup {
     pub settings: LightmapSettings,
+    pub index: u32,
 
     pub albedo: Texture2D,
     pub emission: Texture2D,
     pub emission_pixels: Vec<f32>,
+
+    pub direct_pixels: Vec<f32>,
 }
 
 #[inline]
@@ -529,24 +532,13 @@ fn initialize_bake_push_constants(
     max_samples: u32,
     bounce_count: u32,
 ) {
-    app.push = BakePushConstants {
+    app.preview_push_constants = PreviewPushConstants {
         lights_count: app.cpu_lights.len() as u32,
         sample_index: 0,
         width: width,
         height: height,
         max_samples,
         bounce_count,
-    };
-}
-
-fn initialize_bake_sh_push_constants(app: &mut Stilb, max_samples: u32, bounce_count: u32) {
-    app.push_probes = BakeSHPushConstants {
-        lights_count: app.cpu_lights.len() as u32,
-        sample_index: 0,
-        max_samples,
-        bounce_count,
-        probes_count: app.probes.len() as u32,
-        pad0: 0,
     };
 }
 
@@ -600,7 +592,7 @@ fn render_preview(app: &mut Stilb) {
 
             print!(
                 "\rSample: {} / {}",
-                app.push.sample_index, preview_settings.max_samples
+                app.preview_push_constants.sample_index, preview_settings.max_samples
             );
             io::stdout().flush().unwrap();
 
@@ -615,13 +607,13 @@ fn render_preview(app: &mut Stilb) {
             update_camera(app, delta_time);
 
             if !app.preview_initialized {
-                app.push.sample_index = 0;
+                app.preview_push_constants.sample_index = 0;
                 bake_start_time = std::time::Instant::now();
                 bake_complete_printed = false;
             }
 
             // render finished
-            if app.push.sample_index >= preview_settings.max_samples {
+            if app.preview_push_constants.sample_index >= preview_settings.max_samples {
                 std::thread::sleep(Duration::from_millis(16));
                 if !bake_complete_printed {
                     io::stdout().flush().unwrap();
@@ -695,7 +687,199 @@ fn render_lightmaps(app: &mut Stilb) {
         (app.opaque_mesh.indices.len() / 3) as u32,
     );
 
+    let lights_count = app.cpu_lights.len() as u32;
+
+    for i in 0..app.groups.len() {
+        let group = &app.groups[i];
+
+        let settings = group.settings.clone();
+
+        let width = group.settings.width;
+        let height = group.settings.height;
+
+        let mut push = BakeDirectPushConstants {
+            width,
+            height,
+            sample_index: 0,
+            max_samples: settings.max_samples,
+            lights_count,
+            pad0: 0,
+            pad1: 0,
+            pad2: 0,
+        };
+
+        update_render_target(app, &settings, 0);
+
+        let RenderTarget::NonDirectional {
+            visibility,
+            diffuse,
+        } = &mut app.render_target
+        else {
+            unreachable!()
+        };
+
+        let shader = &bake_direct_shader;
+
+        update_bake_direct_shader(
+            &app.vk,
+            shader,
+            app.tlas.acceleration_structure(),
+            visibility.view(),
+            &albedos,
+            &emissions,
+            diffuse.view(),
+            app.texture_sampler,
+            app.gpu_mesh.index_buffer.buffer,
+            app.gpu_mesh.vertex_buffer.buffer,
+            app.gpu_lights.buffer,
+        );
+
+        let cmd = app.vk.command_buffer;
+        let vk = &app.vk.device;
+
+        let groups_x = (width + 7) / 8;
+        let groups_y = (height + 7) / 8;
+
+        let begin_info = vk::CommandBufferBeginInfo {
+            flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+            ..Default::default()
+        };
+
+        loop {
+            unsafe {
+                vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+                    .unwrap();
+
+                vk.begin_command_buffer(cmd, &begin_info).unwrap();
+
+                if diffuse.layout() != vk::ImageLayout::GENERAL {
+                    let barrier = diffuse.barrier(
+                        vk::ImageLayout::GENERAL,
+                        vk::AccessFlags::default(),
+                        vk::AccessFlags::SHADER_WRITE,
+                    );
+                    vk.cmd_pipeline_barrier(
+                        cmd,
+                        vk::PipelineStageFlags::TOP_OF_PIPE,
+                        vk::PipelineStageFlags::COMPUTE_SHADER,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        &[barrier],
+                    );
+                }
+
+                vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+                vk.cmd_bind_descriptor_sets(
+                    cmd,
+                    vk::PipelineBindPoint::COMPUTE,
+                    shader.pipeline_layout,
+                    0,
+                    &[shader.descriptor_set],
+                    &[],
+                );
+
+                let constants_bytes = as_bytes(&push);
+
+                vk.cmd_push_constants(
+                    cmd,
+                    shader.pipeline_layout,
+                    vk::ShaderStageFlags::COMPUTE,
+                    0,
+                    &constants_bytes,
+                );
+
+                vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
+
+                let cmds = [cmd];
+                let submit = vk::SubmitInfo::default().command_buffers(&cmds);
+
+                vk.end_command_buffer(cmd).unwrap();
+
+                vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
+                    .unwrap();
+
+                vk.queue_wait_idle(app.vk.compute_queue).unwrap()
+            };
+
+            push.sample_index += 1;
+
+            if push.sample_index >= push.max_samples {
+                break;
+            }
+        }
+
+        unsafe { vk.queue_wait_idle(app.vk.compute_queue).unwrap() }
+
+        app.groups[i].direct_pixels = diffuse.read_pixels(&app.vk);
+    }
+
     bake_direct_shader.destroy(&app.vk);
+
+    for i in 0..app.groups.len() {
+        let group = &mut app.groups[i];
+        let group_index = group.index;
+        let mut pixels = &mut group.direct_pixels;
+        let settings = group.settings.clone();
+
+        let width = group.settings.width;
+        let height = group.settings.height;
+
+        if settings.dilate {
+            let start_time = std::time::Instant::now();
+            let backface_threshold = 0.9;
+
+            inpaint(pixels, width, height, backface_threshold, 32);
+
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(start_time).as_secs_f32();
+            println!("dilated in {}s", elapsed);
+        }
+
+        if settings.denoise {
+            let start_time = std::time::Instant::now();
+
+            match &oidn {
+                Some(oidn) => {
+                    oidn.denoise(&mut pixels, width as usize, height as usize);
+                }
+                None => {}
+            }
+
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(start_time).as_secs_f32();
+            println!("denoised in {}s", elapsed);
+        }
+
+        if settings.fix_seams {
+            let start_time = std::time::Instant::now();
+
+            fix_seams(
+                &mut pixels,
+                width,
+                height,
+                &app.seams,
+                app.config.seams_debug,
+                group_index,
+            );
+
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(start_time).as_secs_f32();
+            println!("fixed seams in {}s", elapsed);
+        }
+
+        let readback_data = ReadbackData {
+            group_index,
+            ty: 0,
+            pixels: pixels.as_ptr(),
+            pixels_count: pixels.len() as u32,
+            width,
+            height,
+        };
+
+        (app.config.callback)(readback_data);
+    }
 }
 
 // fn _bake_lightmaps(app: &mut Stilb) {
@@ -1422,7 +1606,7 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
 
         vk.begin_command_buffer(cmd, &begin_info).unwrap();
 
-        if app.push.sample_index == 0 {
+        if app.preview_push_constants.sample_index == 0 {
             update_visibility_from_camera(app, cmd);
             app.preview_initialized = true;
             let clear = vk::ClearColorValue {
@@ -1465,10 +1649,10 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
             &[barrier],
         );
 
-        if app.push.sample_index < settings.max_samples {
+        if app.preview_push_constants.sample_index < settings.max_samples {
             let shader = &app.preview_shader;
 
-            let constants_bytes = as_bytes(&app.push);
+            let constants_bytes = as_bytes(&app.preview_push_constants);
 
             let groups_x = (width + 7) / 8;
             let groups_y = (height + 7) / 8;
@@ -1494,7 +1678,7 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
 
             vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
 
-            app.push.sample_index += 1;
+            app.preview_push_constants.sample_index += 1;
         }
 
         let swapchain_image = &app.vk.swapchain.frames[image_index as usize];
@@ -1797,6 +1981,7 @@ impl LightmapGroup {
         settings: LightmapSettings,
         albedo_pixels: &[u8],
         emission_pixels: &[f32],
+        index: u32,
     ) -> LightmapGroup {
         // println!("creating lightmap group {:?}", &settings);
 
@@ -1866,6 +2051,8 @@ impl LightmapGroup {
             albedo,
             emission,
             emission_pixels: emission_pixels.to_vec(),
+            direct_pixels: Vec::new(),
+            index,
         }
     }
 
@@ -1942,22 +2129,13 @@ impl Stilb {
 
         let texture_sampler = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
 
-        let push = BakePushConstants {
+        let preview_push_constants = PreviewPushConstants {
             lights_count: 0,
             sample_index: 0,
             width: 0,
             height: 0,
             max_samples: 0,
             bounce_count: 0,
-        };
-
-        let push_probes = BakeSHPushConstants {
-            lights_count: 0,
-            sample_index: 0,
-            max_samples: 0,
-            bounce_count: 0,
-            probes_count: 0,
-            pad0: 0,
         };
 
         let opaque_mesh = Mesh {
@@ -1986,12 +2164,11 @@ impl Stilb {
             preview_initialized: false,
             gpu_lights,
             texture_sampler,
-            push,
+            preview_push_constants,
             render_target: RenderTarget::None,
             probes: Vec::new(),
             probes_buffer: Buffer::null(),
             bake_probes_shader: ComputeShader::null(),
-            push_probes,
             seams: Vec::new(),
             emissive_triangles: Vec::new(),
             emissive_triangles_buffer: Buffer::null(),

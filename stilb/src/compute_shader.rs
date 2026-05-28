@@ -126,7 +126,7 @@ pub struct InitFromCameraPushConstants {
 }
 
 #[repr(C)]
-pub struct BakePushConstants {
+pub struct PreviewPushConstants {
     pub lights_count: u32,
     pub max_samples: u32,
 
@@ -389,7 +389,7 @@ pub fn load_preview_shader(
     let push_constant_ranges = [vk::PushConstantRange {
         stage_flags: vk::ShaderStageFlags::COMPUTE,
         offset: 0,
-        size: std::mem::size_of::<BakePushConstants>() as u32,
+        size: std::mem::size_of::<PreviewPushConstants>() as u32,
     }];
 
     ComputeShader::new(
