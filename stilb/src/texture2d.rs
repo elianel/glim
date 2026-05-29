@@ -1,5 +1,5 @@
 use std::{
-    ptr,
+    ptr, slice,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -259,6 +259,28 @@ impl Texture2D {
     }
 
     pub fn read_pixels_to(&mut self, vk: &VulkanContext, dst: &mut Vec<f32>) {
+        let mut logic = |src: &[f32]| {
+            dst.clear();
+            dst.extend(src);
+        };
+        self.read_pixels_with(vk, &mut logic);
+    }
+
+    pub fn add_pixels_to(&mut self, vk: &VulkanContext, dst: &mut [f32]) {
+        let mut logic = |src: &[f32]| {
+            assert!(dst.len() == src.len());
+
+            for (d, s) in dst.iter_mut().zip(src) {
+                *d += s;
+            }
+        };
+        self.read_pixels_with(vk, &mut logic);
+    }
+
+    pub fn read_pixels_with<F>(&mut self, vk: &VulkanContext, mut logic: F)
+    where
+        F: FnMut(&[f32]),
+    {
         let size = self.get_device_size();
 
         let (staging_buffer, staging_memory) = vk.create_buffer(
@@ -269,23 +291,27 @@ impl Texture2D {
 
         let cmd = vk.begin_single_use_cmd();
 
-        let barrier = self.barrier(
-            vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-            vk::AccessFlags::SHADER_WRITE,
-            vk::AccessFlags::TRANSFER_READ,
-        );
+        let previous_layout = self.layout();
 
-        unsafe {
-            vk.device.cmd_pipeline_barrier(
-                cmd,
-                vk::PipelineStageFlags::COMPUTE_SHADER,
-                vk::PipelineStageFlags::TRANSFER,
-                vk::DependencyFlags::empty(),
-                &[],
-                &[],
-                &[barrier],
-            )
-        };
+        if previous_layout != vk::ImageLayout::TRANSFER_SRC_OPTIMAL {
+            let barrier = self.barrier(
+                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                vk::AccessFlags::SHADER_WRITE,
+                vk::AccessFlags::TRANSFER_READ,
+            );
+
+            unsafe {
+                vk.device.cmd_pipeline_barrier(
+                    cmd,
+                    vk::PipelineStageFlags::COMPUTE_SHADER,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[barrier],
+                )
+            };
+        }
 
         let image_subresource = vk::ImageSubresourceLayers {
             aspect_mask: vk::ImageAspectFlags::COLOR,
@@ -327,10 +353,8 @@ impl Texture2D {
         let pixel_count = (self.width * self.height * 4) as usize;
 
         unsafe {
-            dst.set_len(0);
-            dst.reserve_exact(pixel_count);
-            std::ptr::copy_nonoverlapping(ptr, dst.as_mut_ptr(), pixel_count);
-            dst.set_len(pixel_count);
+            let slice = slice::from_raw_parts(ptr, pixel_count);
+            logic(slice);
         }
 
         unsafe {

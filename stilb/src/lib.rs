@@ -140,7 +140,8 @@ pub struct LightmapGroup {
     pub emission: Texture2D,
     pub emission_pixels: Vec<f32>,
 
-    pub lightmap_diffuse_pixels: Vec<f32>,
+    pub lightmap_diffuse_final: Vec<f32>,
+    pub lightmap_diffuse_previous_bounce: Vec<f32>,
 }
 
 #[inline]
@@ -763,22 +764,29 @@ fn render_lightmaps(app: &mut Stilb) {
     let lights_count = app.cpu_lights.len() as u32;
 
     let mut previous_diffuses = Vec::new();
+    // let mut temp_pixels = Vec::new();
 
-    for i in 0..app.groups.len() {
-        let group = &app.groups[i];
-        let settings = group.settings.clone();
+    let bounce_count = 1;
 
-        let diffuse = Texture2D::new(
-            &app.vk,
-            settings.width,
-            settings.height,
-            vk::Format::R32G32B32A32_SFLOAT,
-            vk::ImageUsageFlags::SAMPLED
-                | vk::ImageUsageFlags::TRANSFER_SRC
-                | vk::ImageUsageFlags::TRANSFER_DST,
-        );
+    let has_bounces = bounce_count > 0;
 
-        previous_diffuses.push(diffuse);
+    if has_bounces {
+        for i in 0..app.groups.len() {
+            let group = &app.groups[i];
+            let settings = group.settings.clone();
+
+            let diffuse = Texture2D::new(
+                &app.vk,
+                settings.width,
+                settings.height,
+                vk::Format::R32G32B32A32_SFLOAT,
+                vk::ImageUsageFlags::SAMPLED
+                    | vk::ImageUsageFlags::TRANSFER_SRC
+                    | vk::ImageUsageFlags::TRANSFER_DST,
+            );
+
+            previous_diffuses.push(diffuse);
+        }
     }
 
     for i in 0..app.groups.len() {
@@ -897,9 +905,11 @@ fn render_lightmaps(app: &mut Stilb) {
             }
         }
 
-        copy_image(&app.vk, diffuse, &mut previous_diffuses[i]);
+        if has_bounces {
+            copy_image(&app.vk, diffuse, &mut previous_diffuses[i]);
+        }
 
-        // app.groups[i].lightmap_diffuse_pixels = diffuse.read_pixels(&app.vk);
+        diffuse.read_pixels_to(&app.vk, &mut app.groups[i].lightmap_diffuse_final);
     }
 
     bake_direct_shader.destroy(&app.vk);
@@ -910,8 +920,6 @@ fn render_lightmaps(app: &mut Stilb) {
         app.groups.len() as u32,
         (app.opaque_mesh.indices.len() / 3) as u32,
     );
-
-    let bounce_count = 1;
 
     for bounce_index in 0..bounce_count {
         let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
@@ -1034,7 +1042,15 @@ fn render_lightmaps(app: &mut Stilb) {
 
             unsafe { app.vk.device.queue_wait_idle(app.vk.compute_queue).unwrap() }
 
-            app.groups[i].lightmap_diffuse_pixels = diffuse.read_pixels(&app.vk);
+            diffuse.read_pixels_to(&app.vk, &mut app.groups[i].lightmap_diffuse_previous_bounce);
+
+            let group = &mut app.groups[i];
+            let src = &group.lightmap_diffuse_previous_bounce;
+            let dst = &mut group.lightmap_diffuse_final;
+
+            for (d, s) in dst.iter_mut().zip(src) {
+                *d += s;
+            }
         }
     }
 
@@ -1047,7 +1063,7 @@ fn render_lightmaps(app: &mut Stilb) {
     for i in 0..app.groups.len() {
         let group = &mut app.groups[i];
         let group_index = group.index;
-        let mut pixels = &mut group.lightmap_diffuse_pixels;
+        let mut pixels = &mut group.lightmap_diffuse_final;
         let settings = group.settings.clone();
 
         let width = group.settings.width;
@@ -2262,7 +2278,8 @@ impl LightmapGroup {
             albedo,
             emission,
             emission_pixels: emission_pixels.to_vec(),
-            lightmap_diffuse_pixels: Vec::new(),
+            lightmap_diffuse_final: Vec::new(),
+            lightmap_diffuse_previous_bounce: Vec::new(),
             index,
         }
     }
