@@ -2077,38 +2077,56 @@ fn update_render_target(app: &mut Stilb, settings: &LightmapSettings, group_inde
         (settings.width, settings.height)
     };
 
-    let diffuse = &mut app.render_target.diffuse;
-    let visibility = &mut app.render_target.visibility;
-
-    if !diffuse.image().is_null() {
-        diffuse.destroy(&app.vk);
-    }
-
-    let diffuse = Texture2D::new(
-        &app.vk,
-        width,
-        height,
-        vk::Format::R32G32B32A32_SFLOAT,
-        vk::ImageUsageFlags::STORAGE
-            | vk::ImageUsageFlags::TRANSFER_SRC
-            | vk::ImageUsageFlags::TRANSFER_DST,
-    );
-
     if app.config.is_preview {
+        let diffuse = &mut app.render_target.diffuse;
+        let visibility = &mut app.render_target.visibility;
+
+        if !diffuse.image().is_null() {
+            diffuse.destroy(&app.vk);
+        }
         if !visibility.image().is_null() {
             visibility.destroy(&app.vk);
         }
 
+        let diffuse = Texture2D::new(
+            &app.vk,
+            width,
+            height,
+            vk::Format::R32G32B32A32_SFLOAT,
+            vk::ImageUsageFlags::STORAGE
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST,
+        );
+
         let visibility = render_visibility_from_camera(app, width, height);
+
         println!("visibility: {:#x}", visibility.image().as_raw());
+        println!("diffuse: {:#x}", diffuse.image().as_raw());
+
+        app.render_target.diffuse = diffuse;
         app.render_target.visibility = visibility;
     } else {
         render_visibility_from_lightmap(app, width, height, group_index);
+
+        let diffuse = &mut app.render_target.diffuse;
+
+        if diffuse.width() != width || diffuse.height() != height {
+            if !diffuse.image().is_null() {
+                diffuse.destroy(&app.vk);
+            }
+
+            app.render_target.diffuse = Texture2D::new(
+                &app.vk,
+                width,
+                height,
+                vk::Format::R32G32B32A32_SFLOAT,
+                vk::ImageUsageFlags::STORAGE
+                    | vk::ImageUsageFlags::TRANSFER_SRC
+                    | vk::ImageUsageFlags::TRANSFER_DST,
+            );
+            println!("diffuse: {:#x}", app.render_target.diffuse.image().as_raw());
+        }
     }
-
-    println!("diffuse: {:#x}", diffuse.image().as_raw());
-
-    app.render_target.diffuse = diffuse;
 
     initialize_bake_push_constants(
         app,
