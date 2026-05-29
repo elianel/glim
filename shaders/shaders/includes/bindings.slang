@@ -64,3 +64,8 @@ float4 SampleEmission(float2 uv, uint lightmapGroup)
 {
     return Emission[NonUniformResourceIndex(lightmapGroup)].SampleLevel(TextureSampler, uv, 0);
 }
+
+float4 SamplePreviousDiffuse(float2 uv, uint lightmapGroup)
+{
+    return PreviousDiffuse[NonUniformResourceIndex(lightmapGroup)].SampleLevel(TextureSampler, uv, 0);
+}

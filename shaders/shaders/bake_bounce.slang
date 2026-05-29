@@ -56,7 +56,8 @@ struct PushConstants
     uint pixelSeed = RNGPixelInit(coords, pattern);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
 
-    float2 xiBounce = SobolBurleySample2D(indexing.x, (bounceIndex + 1) * 2, indexing.y, indexing.z);
+    uint dimension = bounceIndex + 1;
+    float2 xiBounce = SobolBurleySample2D(indexing.x, dimension, indexing.y, indexing.z);
 
     Ray bounceRay;
     bounceRay.P = RayOffset(surface.P, surface.Ng);
@@ -90,11 +91,8 @@ struct PushConstants
         }
 
         // todo why flipped
-        uint2 coords = uint2(float2(surface.uv.x, 1.0 - surface.uv.y) * resolution);
-        uint index = NonUniformResourceIndex(surface.lightmapGroup);
-        float3 previousBounce = PreviousDiffuse[index][coords].rgb;
-
-        SpectrumAdd(spectrum, previousBounce * bounceAlbedo, 0);
+        float3 previousDiffuse = SamplePreviousDiffuse(float2(surface.uv.x, 1.0 - surface.uv.y), surface.lightmapGroup).rgb;
+        SpectrumAdd(spectrum, previousDiffuse * bounceAlbedo, 0);
     }
 
     AccumulateColor(LightmapDiffuse, coords, sampleIndex, float4(spectrum.color, 1.0));

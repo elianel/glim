@@ -22,6 +22,7 @@
 - [ ] Probe occlusion
 - [ ] Try to stop unity from slowing down the bake start for no reason
 - [ ] Bake reflection probes with super sampling
+- [ ] Global fix seams
 
 ## Easy
 - [ ] Sync scene view fov
