@@ -764,9 +764,8 @@ fn render_lightmaps(app: &mut Stilb) {
     let lights_count = app.cpu_lights.len() as u32;
 
     let mut previous_diffuses = Vec::new();
-    // let mut temp_pixels = Vec::new();
 
-    let bounce_count = 1;
+    let bounce_count = 2;
 
     let has_bounces = bounce_count > 0;
 
@@ -1050,6 +1049,16 @@ fn render_lightmaps(app: &mut Stilb) {
 
             for (d, s) in dst.iter_mut().zip(src) {
                 *d += s;
+            }
+        }
+
+        let last_bounce = bounce_index == bounce_count - 1;
+
+        if !last_bounce {
+            for i in 0..app.groups.len() {
+                let group = &mut app.groups[i];
+                let pixels = &group.lightmap_diffuse_previous_bounce;
+                previous_diffuses[i].set_pixels(&app.vk, pixels);
             }
         }
     }
@@ -2050,6 +2059,15 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
 }
 
 fn update_render_target(app: &mut Stilb, settings: &LightmapSettings, group_index: u32) {
+    let (width, height) = if app.config.is_preview {
+        (
+            app.config.preview_settings.width,
+            app.config.preview_settings.height,
+        )
+    } else {
+        (settings.width, settings.height)
+    };
+
     let diffuse = &mut app.render_target.diffuse;
     let visibility = &mut app.render_target.visibility;
 
@@ -2060,15 +2078,6 @@ fn update_render_target(app: &mut Stilb, settings: &LightmapSettings, group_inde
     if !visibility.image().is_null() {
         visibility.destroy(&app.vk);
     }
-
-    let (width, height) = if app.config.is_preview {
-        (
-            app.config.preview_settings.width,
-            app.config.preview_settings.height,
-        )
-    } else {
-        (settings.width, settings.height)
-    };
 
     let diffuse = Texture2D::new(
         &app.vk,

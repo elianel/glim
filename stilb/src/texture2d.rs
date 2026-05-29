@@ -160,6 +160,7 @@ impl Texture2D {
 
         let size = self.get_device_size();
 
+        // todo see if staging buffer and memory can be skipped
         let (staging_buffer, staging_memory) = vk.create_buffer(
             size,
             vk::BufferUsageFlags::TRANSFER_SRC,
