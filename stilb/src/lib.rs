@@ -469,7 +469,7 @@ fn initialize_render(app: &mut Stilb) {
             | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | vk::BufferUsageFlags::TRANSFER_SRC;
 
-        app.probes_buffer = Buffer::new(&app.vk, &app.probes, flags);
+        app.probes_buffer = Buffer::new(&app.vk, String::from("Light Probes"), &app.probes, flags);
     }
 
     // clamp samples and bounces to supported limits
@@ -482,7 +482,12 @@ fn initialize_render(app: &mut Stilb) {
 
     // upload lights
     if app.cpu_lights.len() > 0 {
-        app.gpu_lights = Buffer::new(&app.vk, &app.cpu_lights, light_buffer_flags());
+        app.gpu_lights = Buffer::new(
+            &app.vk,
+            String::from("Lights"),
+            &app.cpu_lights,
+            light_buffer_flags(),
+        );
     } else {
         let dummy_buffer = [Light {
             position: Vector3::ZERO,
@@ -492,7 +497,12 @@ fn initialize_render(app: &mut Stilb) {
             color: Vector3::ZERO,
             shadow_radius_or_angle: 0.0,
         }];
-        app.gpu_lights = Buffer::new(&app.vk, &dummy_buffer, light_buffer_flags());
+        app.gpu_lights = Buffer::new(
+            &app.vk,
+            String::from("Lights"),
+            &dummy_buffer,
+            light_buffer_flags(),
+        );
     }
 
     app.gpu_mesh = GpuMesh::new(&app.vk, &app.opaque_mesh, &app.transparent_mesh);
@@ -2251,6 +2261,7 @@ fn extract_emissive_triangles(app: &mut Stilb) {
     if emissive_triangles.len() > 0 {
         app.emissive_triangles_buffer = Buffer::new(
             &app.vk,
+            String::from("Emissive Triangles"),
             &emissive_triangles,
             vk::BufferUsageFlags::TRANSFER_DST
                 | vk::BufferUsageFlags::STORAGE_BUFFER
@@ -2260,6 +2271,7 @@ fn extract_emissive_triangles(app: &mut Stilb) {
         let dummy = [0u32];
         app.emissive_triangles_buffer = Buffer::new(
             &app.vk,
+            String::from("Emissive Triangles"),
             &dummy,
             vk::BufferUsageFlags::TRANSFER_DST
                 | vk::BufferUsageFlags::STORAGE_BUFFER

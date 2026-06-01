@@ -20,17 +20,18 @@ pub struct Texture2D {
     bytes: u64,
     name: String,
 }
-static ALLOCATED_MEMORY: AtomicU64 = AtomicU64::new(0);
 
-fn register_alloc(bytes: u64) -> f64 {
-    let val = ALLOCATED_MEMORY.fetch_add(bytes, Ordering::Relaxed) + bytes;
+static ALLOCATED_GPU_MEMORY: AtomicU64 = AtomicU64::new(0);
+
+fn register_gpu_alloc(bytes: u64) -> f64 {
+    let val = ALLOCATED_GPU_MEMORY.fetch_add(bytes, Ordering::Relaxed) + bytes;
 
     let mb = val as f64 / (1024.0 * 1024.0);
     mb
 }
 
-fn unregister_alloc(bytes: u64) {
-    ALLOCATED_MEMORY.fetch_sub(bytes, Ordering::Relaxed);
+fn unregister_gpu_alloc(bytes: u64) {
+    ALLOCATED_GPU_MEMORY.fetch_sub(bytes, Ordering::Relaxed);
 }
 
 #[allow(dead_code)]
@@ -101,7 +102,7 @@ impl Texture2D {
 
         let view = unsafe { vk.device.create_image_view(&create_info, None) }.unwrap();
 
-        let allocated = register_alloc(mem_reqs.size);
+        let allocated = register_gpu_alloc(mem_reqs.size);
 
         println!(
             "Created Texture '{:#x}' VRAM: {:.2} MiB ({})",
@@ -134,7 +135,7 @@ impl Texture2D {
             }
             if !self.memory().is_null() {
                 vk.device.free_memory(self.memory, None);
-                unregister_alloc(self.bytes);
+                unregister_gpu_alloc(self.bytes);
             }
 
             if !self.image.is_null() {
@@ -171,7 +172,7 @@ impl Texture2D {
         let size = self.get_device_size();
 
         // todo see if staging buffer and memory can be skipped
-        let (staging_buffer, staging_memory) = vk.create_buffer(
+        let (staging_buffer, staging_memory, _) = vk.create_buffer(
             size,
             vk::BufferUsageFlags::TRANSFER_SRC,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -294,7 +295,7 @@ impl Texture2D {
     {
         let size = self.get_device_size();
 
-        let (staging_buffer, staging_memory) = vk.create_buffer(
+        let (staging_buffer, staging_memory, _) = vk.create_buffer(
             size,
             vk::BufferUsageFlags::TRANSFER_DST,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,

@@ -27,6 +27,7 @@ namespace stilb
         public uint indirectSamples = 1024;
         public uint lightProbeSamples = 4096;
         public uint bounces = 5;
+        public bool multipleImportanceSampling = true;
 
         [Header("Preview Settings")]
         public uint previewWidth = 1024;

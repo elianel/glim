@@ -61,7 +61,8 @@ namespace stilb
                                Vector3 camera_forward,
                                TextureSamplerFilter texture_filter,
                                uint probe_samples,
-                               LightFalloffType falloff)
+                               LightFalloffType falloff,
+                               bool mis)
             {
                 this.coordinate_system = coordinate_system;
                 this.is_preview = is_preview;
@@ -80,7 +81,7 @@ namespace stilb
                 this.bounce_count = bounce_count;
                 this.vulkan_validation_layers = false;
                 this.seams_debug = false;
-                this.mis = false;
+                this.mis = mis;
 
                 var currentPipeline = GraphicsSettings.currentRenderPipeline;
                 uint autoFalloff = 0;

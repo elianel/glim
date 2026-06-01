@@ -214,8 +214,8 @@ impl GpuMesh {
         merged_mesh.merge_mesh(transparent_mesh);
 
         // vertices
-        let vertex_buffer = Buffer::new(vk, &merged_mesh.vertices, usage);
-        let index_buffer = Buffer::new(vk, &merged_mesh.indices, usage);
+        let vertex_buffer = Buffer::new(vk, String::from("Vertex"), &merged_mesh.vertices, usage);
+        let index_buffer = Buffer::new(vk, String::from("Index"), &merged_mesh.indices, usage);
 
         let bvh = if vk.as_device.is_some() {
             AccelerationStructureType::RayQuery(GpuMesh::create_vulkan_blas(
@@ -310,7 +310,7 @@ impl GpuMesh {
             )
         };
 
-        let (blas_buffer, blas_memory) = vk.create_buffer(
+        let (blas_buffer, blas_memory, _) = vk.create_buffer(
             size_info.acceleration_structure_size,
             vk::BufferUsageFlags::ACCELERATION_STRUCTURE_STORAGE_KHR
                 | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
@@ -326,7 +326,7 @@ impl GpuMesh {
 
         let blas = unsafe { as_device.create_acceleration_structure(&create_info, None) }.unwrap();
 
-        let (scratch_buffer, scratch_memory) = vk.create_buffer(
+        let (scratch_buffer, scratch_memory, _) = vk.create_buffer(
             size_info.build_scratch_size,
             vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
             vk::MemoryPropertyFlags::DEVICE_LOCAL,
@@ -443,7 +443,7 @@ pub fn create_tlas(vk: &VulkanContext, blas: &VulkanAs) -> VulkanAs {
         },
     };
 
-    let (as_instance_buffer, as_instance_mem) = vk.create_buffer(
+    let (as_instance_buffer, as_instance_mem, _) = vk.create_buffer(
         std::mem::size_of::<vk::AccelerationStructureInstanceKHR>() as vk::DeviceSize,
         vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
@@ -502,7 +502,7 @@ pub fn create_tlas(vk: &VulkanContext, blas: &VulkanAs) -> VulkanAs {
         )
     };
 
-    let (tlas_buffer, tlas_mem) = vk.create_buffer(
+    let (tlas_buffer, tlas_mem, _) = vk.create_buffer(
         size_info.acceleration_structure_size,
         vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_STORAGE_KHR,
@@ -522,7 +522,7 @@ pub fn create_tlas(vk: &VulkanContext, blas: &VulkanAs) -> VulkanAs {
             .unwrap()
     };
 
-    let (scratch_buffer2, scratch_mem2) = vk.create_buffer(
+    let (scratch_buffer2, scratch_mem2, _) = vk.create_buffer(
         size_info.build_scratch_size,
         vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS | vk::BufferUsageFlags::STORAGE_BUFFER,
         vk::MemoryPropertyFlags::DEVICE_LOCAL,

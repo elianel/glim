@@ -370,7 +370,7 @@ impl VulkanContext {
         size: vk::DeviceSize,
         usage: vk::BufferUsageFlags,
         properties: vk::MemoryPropertyFlags,
-    ) -> (vk::Buffer, vk::DeviceMemory) {
+    ) -> (vk::Buffer, vk::DeviceMemory, vk::MemoryRequirements) {
         let create_info = vk::BufferCreateInfo {
             size,
             usage,
@@ -401,7 +401,7 @@ impl VulkanContext {
 
         unsafe { self.device.bind_buffer_memory(buffer, memory, 0) }.unwrap();
 
-        (buffer, memory)
+        (buffer, memory, mem_reqs)
     }
 
     pub fn upload_buffer(&self, src: &[u8], dst: vk::Buffer) {
@@ -411,7 +411,7 @@ impl VulkanContext {
         let properties =
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
 
-        let (staging_buffer, staging_memory) = self.create_buffer(size, usage, properties);
+        let (staging_buffer, staging_memory, _) = self.create_buffer(size, usage, properties);
 
         let ptr = unsafe {
             self.device
@@ -455,7 +455,7 @@ impl VulkanContext {
         let properties =
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
 
-        let (staging_buffer, staging_memory) = self.create_buffer(size, usage, properties);
+        let (staging_buffer, staging_memory, _) = self.create_buffer(size, usage, properties);
 
         let cmd = self.begin_single_use_cmd();
 

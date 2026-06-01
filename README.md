@@ -4,7 +4,6 @@
 - [ ] UV Packing
   - [ ] Scale offset
   - [ ] Per chart
-- [ ] Log and progress callback
 - [ ] Bake lightprobes with new shader
 - [ ] Directional lightmaps
 - [ ] Terrain Support
@@ -55,6 +54,7 @@
 
 
 # Complete
+- [x] Log and progress callback
 - [x] Alpha test
 - [x] Conservative rasterization
 - [x] Return codes for bake success, fail, cancel
