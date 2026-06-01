@@ -83,11 +83,6 @@ struct PushConstants
         }
 
         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-        // if (bounceIndex == 0)
-        // {
-        //     float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-        //     SpectrumAdd(spectrum, bounceEmission, 0);
-        // }
 
         // todo why flipped
         float3 previousDiffuse = SamplePreviousDiffuse(float2(surface.uv.x, 1.0 - surface.uv.y), surface.lightmapGroup).rgb;

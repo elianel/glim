@@ -1,8 +1,6 @@
 #include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
-// #define MIS
-
 [[vk::push_constant]]
 PushConstants Push;
 
@@ -189,14 +187,12 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 
         float triangleLightPdf = 0.0;
         float3 triangleLight = 0.0;
-        if (emissiveTriangleCount > 0)
+        if (MULTIPLE_IMPORTANCE_SAMPLING > 0 && EMISSIVE_TRIANGLES_COUNT > 0)
         {
             float2 xiTriangle = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
             uint emissivePrimitiveID = EmissiveTriangles[uint(xiTriangle.x * (float)emissiveTriangleCount)];
             triangleLight = ShadeTriangleLight(emissivePrimitiveID, surface, xiLight, throughput, randomEmissiveTrianglePdf, triangleLightPdf);
-#ifdef MIS
             SpectrumAdd(spectrum, triangleLight * MISWeight(triangleLightPdf, bsdfPdf), 0);
-#endif
         }
 
         bool hitEmissive = false;
@@ -229,21 +225,21 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 
             float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
 
-            if (emissiveTriangleCount > 0)
+            if (any(bounceEmission > 0.0))
             {
-                if (any(bounceEmission > 0.0))
+                hitEmissive = true;
+                if (MULTIPLE_IMPORTANCE_SAMPLING > 0 && EMISSIVE_TRIANGLES_COUNT > 0)
                 {
-                    hitEmissive = true;
-#ifdef MIS
                     float triangleArea = CalculateTriangleArea(bounceHit.primitiveID);
                     float3 positionToLight = surface.P - previousSurface.P;
                     float distSq = dot(positionToLight, positionToLight);
                     float cosThetaLight = saturate(dot(-normalize(positionToLight), surface.N));
                     float hypotheticalLightPdf = (randomEmissiveTrianglePdf / triangleArea) * distSq / cosThetaLight;
                     SpectrumAdd(spectrum, bounceEmission * throughput * MISWeight(bsdfPdf, hypotheticalLightPdf), 0);
-#else
+                }
+                else
+                {
                     SpectrumAdd(spectrum, bounceEmission * throughput, 0);
-#endif
                 }
             }
 

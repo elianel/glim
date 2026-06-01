@@ -174,7 +174,7 @@ pub struct BakeBouncePushConstants {
     pub pad2: u32,
 }
 
-fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 4] {
+fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 5] {
     let size = std::mem::size_of::<u32>();
 
     let map_entries = [
@@ -196,6 +196,11 @@ fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 4] {
         vk::SpecializationMapEntry {
             constant_id: 3,
             offset: 3 * (size as u32),
+            size: size,
+        },
+        vk::SpecializationMapEntry {
+            constant_id: 4,
+            offset: 4 * (size as u32),
             size: size,
         },
     ];
@@ -356,6 +361,7 @@ pub fn load_preview_shader(
     lightmap_group_count: u32,
     transparent_primitive_offset: u32,
     emissive_triangles_count: u32,
+    mis: bool,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
@@ -373,11 +379,13 @@ pub fn load_preview_shader(
     let map_entries = create_specialization_map_entries();
 
     let use_camera: u32 = if use_camera { 1 } else { 0 };
+    let mis: u32 = if mis { 1 } else { 0 };
     let data = [
         use_camera,
         light_falloff_type as u32,
         transparent_primitive_offset,
         emissive_triangles_count,
+        mis,
     ];
     let data_bytes = as_bytes(&data);
 
@@ -408,6 +416,7 @@ pub fn load_bake_direct_shader(
     lightmap_group_count: u32,
     transparent_primitive_offset: u32,
     emissive_triangles_count: u32,
+    mis: bool,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
@@ -424,11 +433,14 @@ pub fn load_bake_direct_shader(
 
     let map_entries = create_specialization_map_entries();
 
+    let mis: u32 = if mis { 1 } else { 0 };
+
     let data = [
         0,
         light_falloff_type as u32,
         transparent_primitive_offset,
         emissive_triangles_count,
+        mis,
     ];
     let data_bytes = as_bytes(&data);
 
@@ -477,6 +489,7 @@ pub fn load_bake_bounce_shader(
         0,
         light_falloff_type as u32,
         transparent_primitive_offset,
+        0,
         0,
     ];
     let data_bytes = as_bytes(&data);

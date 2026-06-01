@@ -36,6 +36,8 @@ pub struct StilbConfig {
     pub probe_bounces: u32,
     pub light_falloff: LightFalloffType,
 
+    pub mis: bool,
+
     pub direct_samples: u32,
     pub indirect_samples: u32,
     pub bounce_count: u32,

@@ -449,7 +449,9 @@ fn initialize_render(app: &mut Stilb) {
 
     let total_triangles = (app.opaque_mesh.indices.len() + app.transparent_mesh.indices.len()) / 3;
 
-    extract_emissive_triangles(app);
+    if app.config.mis {
+        extract_emissive_triangles(app);
+    }
 
     app.preview_shader = load_preview_shader(
         &app.vk,
@@ -458,6 +460,7 @@ fn initialize_render(app: &mut Stilb) {
         app.groups.len() as u32,
         (app.opaque_mesh.indices.len() / 3) as u32,
         app.emissive_triangles.len() as u32,
+        app.config.mis,
     );
 
     if app.probes.len() > 0 {
@@ -764,6 +767,7 @@ fn render_lightmaps(app: &mut Stilb) {
         app.groups.len() as u32,
         (app.opaque_mesh.indices.len() / 3) as u32,
         app.emissive_triangles.len() as u32,
+        app.config.mis,
     );
 
     let lights_count = app.cpu_lights.len() as u32;
