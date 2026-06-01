@@ -799,7 +799,7 @@ fn render_lightmaps(app: &mut Stilb) {
 
     let mut progress = 0.0;
     let progress_max = app.groups.len() as u32 * app.config.direct_samples
-        + app.groups.len() as u32 * app.config.indirect_samples;
+        + app.groups.len() as u32 * app.config.indirect_samples * app.config.bounce_count;
 
     let progress_scale = 1.0 / progress_max as f32;
 
