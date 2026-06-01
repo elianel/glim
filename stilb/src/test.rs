@@ -41,7 +41,7 @@ mod tests {
             indirect_samples: 32,
             bounce_count: 1,
             log_callback: log_callback,
-            mis: true,
+            mis: false,
         };
         config
     }

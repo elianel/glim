@@ -476,7 +476,6 @@ pub fn load_bake_bounce_shader(
     bind_tlas(&mut bindings);
     bind_visibility(&mut bindings);
     bind_albedos(&mut bindings, lightmap_group_count);
-    bind_emissions(&mut bindings, lightmap_group_count);
     bind_lightmap_diffuse(&mut bindings);
     bind_sampler(&mut bindings);
     bind_indices(&mut bindings);
@@ -1053,7 +1052,6 @@ pub fn update_bake_bounce_shader(
     tlas: vk::AccelerationStructureKHR,
     target_visibility: vk::ImageView,
     albedos: &[vk::ImageView],
-    emissions: &[vk::ImageView],
     previous_diffuse: &[vk::ImageView],
     target_diffuse: vk::ImageView,
     sampler: vk::Sampler,
@@ -1101,25 +1099,6 @@ pub fn update_bake_bounce_shader(
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
         dst_binding: 3,
-        dst_array_element: 0,
-        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-        ..Default::default()
-    };
-    write = write.image_info(&infos);
-    descriptor_writes.push(write);
-
-    // Emission
-    let infos: Vec<vk::DescriptorImageInfo> = emissions
-        .iter()
-        .map(|tex| vk::DescriptorImageInfo {
-            image_view: *tex,
-            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            ..Default::default()
-        })
-        .collect();
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 5,
         dst_array_element: 0,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
         ..Default::default()

@@ -943,6 +943,10 @@ fn render_lightmaps(app: &mut Stilb) {
         (app.opaque_mesh.indices.len() / 3) as u32,
     );
 
+    for group in &mut app.groups {
+        group.emission.destroy(&app.vk);
+    }
+
     for bounce_index in 0..bounce_count {
         let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
 
@@ -981,7 +985,6 @@ fn render_lightmaps(app: &mut Stilb) {
                 app.tlas.acceleration_structure(),
                 visibility.view(),
                 &albedos,
-                &emissions,
                 &previous,
                 diffuse.view(),
                 app.texture_sampler,
@@ -2321,8 +2324,12 @@ impl LightmapGroup {
     }
 
     pub fn destroy(&mut self, vk: &VulkanContext) {
-        self.albedo.destroy(vk);
-        self.emission.destroy(vk);
+        if !self.albedo.image().is_null() {
+            self.albedo.destroy(vk);
+        }
+        if !self.emission.image().is_null() {
+            self.emission.destroy(vk);
+        }
     }
 }
 
