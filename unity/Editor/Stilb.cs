@@ -47,7 +47,7 @@ namespace stilb
             // var albedoBytes = albedoAtlas.EncodeToTGA();
             // File.WriteAllBytes("Assets/AbledoAtlas.tga", albedoBytes);
 
-            Debug.Log($"Group width: {settings.width}, height:{settings.height}");
+            // Debug.Log($"Group width: {settings.width}, height:{settings.height}");
         }
 
         public void ClearPixels()
@@ -303,10 +303,10 @@ namespace stilb
                 lda.Dispose();
             }
 
-            Debug.Log($"Vertices: {sceneMesh.Sum(x => x.vertices.Length)}");
-            Debug.Log($"Indices: {sceneMesh.Sum(x => x.triangles.Length)}");
-            Debug.Log($"Lights: {sceneLights.Count}");
-            Debug.Log($"LightProbes: {this.probePositions.Count}");
+            // Debug.Log($"Vertices: {sceneMesh.Sum(x => x.vertices.Length)}");
+            // Debug.Log($"Indices: {sceneMesh.Sum(x => x.triangles.Length)}");
+            // Debug.Log($"Lights: {sceneLights.Count}");
+            // Debug.Log($"LightProbes: {this.probePositions.Count}");
         }
     }
 

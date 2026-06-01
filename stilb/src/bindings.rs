@@ -98,11 +98,11 @@ impl LogMessage {
         }
     }
 
-    pub fn progress(progress: f32) -> Self {
+    pub fn progress(message: &str, progress: f32) -> Self {
         Self {
             ty: LogMessageType::Progress,
             progress,
-            message: FfiString::null(),
+            message: FfiString::new(message),
         }
     }
 

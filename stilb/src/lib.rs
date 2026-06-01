@@ -497,7 +497,7 @@ fn initialize_render(app: &mut Stilb) {
 
     app.gpu_mesh = GpuMesh::new(&app.vk, &app.opaque_mesh, &app.transparent_mesh);
     let message = format!(
-        "Uploaded mesh Vertices: {} Triangles: {}",
+        "Baking Vertices: {} Triangles: {}",
         app.opaque_mesh.vertices.len() + app.transparent_mesh.vertices.len(),
         total_triangles,
     );
@@ -805,7 +805,6 @@ fn render_lightmaps(app: &mut Stilb) {
 
     for i in 0..app.groups.len() {
         let message = format!("Rendering direct light for group {}", i);
-        (log)(LogMessage::message(&message));
 
         let group = &app.groups[i];
 
@@ -859,7 +858,7 @@ fn render_lightmaps(app: &mut Stilb) {
         };
 
         loop {
-            (log)(LogMessage::progress(progress * progress_scale));
+            (log)(LogMessage::progress(&message, progress * progress_scale));
 
             unsafe {
                 vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
@@ -951,8 +950,7 @@ fn render_lightmaps(app: &mut Stilb) {
         let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
 
         for i in 0..app.groups.len() {
-            let message = format!("Rendering bounce {} for group {}", bounce_index, i);
-            (log)(LogMessage::message(&message));
+            let message = format!("Baking Bounce {} for Lightmap Group {}", bounce_index, i);
 
             let group = &app.groups[i];
 
@@ -1004,7 +1002,7 @@ fn render_lightmaps(app: &mut Stilb) {
             };
 
             loop {
-                (log)(LogMessage::progress(progress * progress_scale));
+                (log)(LogMessage::progress(&message, progress * progress_scale));
 
                 unsafe {
                     vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
@@ -1120,7 +1118,7 @@ fn render_lightmaps(app: &mut Stilb) {
             let now = std::time::Instant::now();
             let elapsed = now.duration_since(start_time).as_secs_f32();
 
-            let message = format!("Dilation complete - {}s", elapsed);
+            let message = format!("Dilation complete {}s", elapsed);
             (log)(LogMessage::message(&message));
         }
 
@@ -1137,7 +1135,7 @@ fn render_lightmaps(app: &mut Stilb) {
             let now = std::time::Instant::now();
             let elapsed = now.duration_since(start_time).as_secs_f32();
 
-            let message = format!("Denoise Complete - {}s", elapsed);
+            let message = format!("Denoise Complete {}s", elapsed);
             (log)(LogMessage::message(&message));
         }
 
@@ -1156,7 +1154,7 @@ fn render_lightmaps(app: &mut Stilb) {
             let now = std::time::Instant::now();
             let elapsed = now.duration_since(start_time).as_secs_f32();
 
-            let message = format!("Seam Fix Complete - {}s", elapsed);
+            let message = format!("Seam Fix Complete {}s", elapsed);
             (log)(LogMessage::message(&message));
         }
 

@@ -419,7 +419,11 @@ mod tests {
             LogMessageType::Error => panic!("Error: {}", data.message.from()),
             LogMessageType::Progress => {
                 use std::io::{self, Write};
-                print!("\rProgress: {:.1}%\x1B[K", data.progress * 100.0);
+                print!(
+                    "\r{}: {:.1}%\x1B[K",
+                    data.message.from(),
+                    data.progress * 100.0
+                );
                 let _ = io::stdout().flush();
             }
         }

@@ -60,7 +60,7 @@ namespace stilb
             }
             if (data.ty == 2) // progress
             {
-                Progress.Report(_progressID, data.progress);
+                Progress.Report(_progressID, data.progress, data.message.ToString());
             }
         }
 
@@ -249,7 +249,10 @@ namespace stilb
             _isComplete = false;
             _running = false;
             _context = null;
-            Progress.Finish(_progressID, Progress.Status.Succeeded);
+            if (_progressID != -1)
+            {
+                Progress.Finish(_progressID, Progress.Status.Succeeded);
+            }
             _progressID = -1;
         }
 
@@ -270,7 +273,10 @@ namespace stilb
 
             _running = true;
 
-            _progressID = Progress.Start("Baking Lightmaps", null, Progress.Options.None);
+            if (!config.is_preview)
+            {
+                _progressID = Progress.Start("Baking Lightmaps", null, Progress.Options.None);
+            }
 
             _bakeStartTime = Time.realtimeSinceStartupAsDouble;
             var thread = new Thread(() =>
