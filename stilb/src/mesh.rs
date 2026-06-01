@@ -214,8 +214,20 @@ impl GpuMesh {
         merged_mesh.merge_mesh(transparent_mesh);
 
         // vertices
-        let vertex_buffer = Buffer::new(vk, String::from("Vertex"), &merged_mesh.vertices, usage);
-        let index_buffer = Buffer::new(vk, String::from("Index"), &merged_mesh.indices, usage);
+        let vertex_buffer = Buffer::new(
+            vk,
+            String::from("Vertex"),
+            &merged_mesh.vertices,
+            usage,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        );
+        let index_buffer = Buffer::new(
+            vk,
+            String::from("Index"),
+            &merged_mesh.indices,
+            usage,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        );
 
         let bvh = if vk.as_device.is_some() {
             AccelerationStructureType::RayQuery(GpuMesh::create_vulkan_blas(

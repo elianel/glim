@@ -41,10 +41,37 @@ impl Buffer {
         name: String,
         bytes: &[T],
         usage: vk::BufferUsageFlags,
+        properties: vk::MemoryPropertyFlags,
     ) -> Self {
         let size = (bytes.len() * std::mem::size_of::<T>()) as vk::DeviceSize;
-        let (buffer, memory, mem_reqs) =
-            vk.create_buffer(size, usage, vk::MemoryPropertyFlags::DEVICE_LOCAL);
+
+        let create_info = vk::BufferCreateInfo {
+            size,
+            usage,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            ..Default::default()
+        };
+
+        let buffer = unsafe { vk.device.create_buffer(&create_info, None).unwrap() };
+        let mem_reqs = unsafe { vk.device.get_buffer_memory_requirements(buffer) };
+        let memory_type_index = vk.find_memory_type(mem_reqs.memory_type_bits, properties);
+
+        let mut allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: mem_reqs.size,
+            memory_type_index,
+            ..Default::default()
+        };
+
+        let mut allocate_flags = vk::MemoryAllocateFlagsInfo {
+            flags: vk::MemoryAllocateFlags::DEVICE_ADDRESS,
+            ..Default::default()
+        };
+
+        allocate_info = allocate_info.push_next(&mut allocate_flags);
+
+        let memory = unsafe { vk.device.allocate_memory(&allocate_info, None) }.unwrap();
+
+        unsafe { vk.device.bind_buffer_memory(buffer, memory, 0) }.unwrap();
 
         let info = vk::BufferDeviceAddressInfo {
             buffer,
@@ -63,7 +90,7 @@ impl Buffer {
         let allocated = register_gpu_alloc(mem_reqs.size);
 
         println!(
-            "Created Buffer '{:#x}' VRAM: {:.2} MiB ({})",
+            "Created Buffer '{:#x}' VRAM: {:.3} MiB ({})",
             buffer.as_raw(),
             allocated,
             &name,

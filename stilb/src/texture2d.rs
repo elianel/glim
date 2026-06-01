@@ -5,7 +5,7 @@ use std::{
 
 use ash::vk::{self, Handle};
 
-use crate::vulkan_context::VulkanContext;
+use crate::{buffer::Buffer, vulkan_context::VulkanContext};
 
 pub struct Texture2D {
     format: vk::Format,
@@ -105,10 +105,12 @@ impl Texture2D {
         let allocated = register_gpu_alloc(mem_reqs.size);
 
         println!(
-            "Created Texture '{:#x}' VRAM: {:.2} MiB ({})",
+            "Created Texture '{:#x}' VRAM: {:.3} MiB ({}) {}x{}",
             image.as_raw(),
             allocated,
             &name,
+            width,
+            height
         );
 
         Self {
@@ -177,6 +179,14 @@ impl Texture2D {
             vk::BufferUsageFlags::TRANSFER_SRC,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
         );
+
+        // let buffer = Buffer::new(
+        //     vk,
+        //     String::from("Set Pixels Buffer"),
+        //     size,
+        //     vk::BufferUsageFlags::TRANSFER_SRC,
+        //     vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+        // );
 
         let ptr = unsafe {
             vk.device

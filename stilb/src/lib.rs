@@ -469,7 +469,13 @@ fn initialize_render(app: &mut Stilb) {
             | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | vk::BufferUsageFlags::TRANSFER_SRC;
 
-        app.probes_buffer = Buffer::new(&app.vk, String::from("Light Probes"), &app.probes, flags);
+        app.probes_buffer = Buffer::new(
+            &app.vk,
+            String::from("Light Probes"),
+            &app.probes,
+            flags,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        );
     }
 
     // clamp samples and bounces to supported limits
@@ -487,6 +493,7 @@ fn initialize_render(app: &mut Stilb) {
             String::from("Lights"),
             &app.cpu_lights,
             light_buffer_flags(),
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
         );
     } else {
         let dummy_buffer = [Light {
@@ -502,12 +509,13 @@ fn initialize_render(app: &mut Stilb) {
             String::from("Lights"),
             &dummy_buffer,
             light_buffer_flags(),
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
         );
     }
 
     app.gpu_mesh = GpuMesh::new(&app.vk, &app.opaque_mesh, &app.transparent_mesh);
     let message = format!(
-        "Baking Vertices: {} Triangles: {}",
+        "Created scene with Vertices: {} Triangles: {}",
         app.opaque_mesh.vertices.len() + app.transparent_mesh.vertices.len(),
         total_triangles,
     );
@@ -2266,6 +2274,7 @@ fn extract_emissive_triangles(app: &mut Stilb) {
             vk::BufferUsageFlags::TRANSFER_DST
                 | vk::BufferUsageFlags::STORAGE_BUFFER
                 | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
         );
     } else {
         let dummy = [0u32];
@@ -2276,6 +2285,7 @@ fn extract_emissive_triangles(app: &mut Stilb) {
             vk::BufferUsageFlags::TRANSFER_DST
                 | vk::BufferUsageFlags::STORAGE_BUFFER
                 | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
         );
     }
 
