@@ -33,7 +33,7 @@ namespace stilb
 
             Button startBakeButton = new()
             {
-                text = "Bake",
+                text = "Generate Lighting",
                 style =
                 {
                     height = 25

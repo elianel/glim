@@ -14,7 +14,7 @@ namespace stilb
     {
         class ReadbackResult
         {
-            public Bindings.ReadbackData data;
+            public Bindings.LightmapReadbackData data;
             public Color[] pixelsDiffuseCopy;
         }
 
@@ -22,10 +22,11 @@ namespace stilb
         static List<Bindings.SHProbe> _bakeProbesResults = new();
         static volatile bool _isComplete = false;
         static volatile bool _running = false;
+        static int _progressID = -1;
         static BakeContext _context = null;
 
-        [AOT.MonoPInvokeCallback(typeof(Bindings.ReadbackCallback))]
-        public static void OnReadback(Bindings.ReadbackData data)
+        [AOT.MonoPInvokeCallback(typeof(Bindings.LightmapReadCallback))]
+        public static void OnReadbackLightmap(Bindings.LightmapReadbackData data)
         {
             Debug.Log($"Received Group {data.group_index}: {data.width}x{data.height}");
             var pixels = data.GetPixels();
@@ -38,12 +39,29 @@ namespace stilb
         }
 
         [AOT.MonoPInvokeCallback(typeof(Bindings.ReadbackProbesCallback))]
-        public static void OnReadbackProbes(Bindings.ReadbackProbeData data)
+        public static void OnReadbackLightprobes(Bindings.LightprobesReadbackData data)
         {
             Debug.Log($"Received Probes {data.probes_count}");
             var probes = data.GetProbes();
 
             _bakeProbesResults.AddRange(probes);
+        }
+
+        [AOT.MonoPInvokeCallback(typeof(Bindings.LogCallback))]
+        public static void OnLogCalback(Bindings.LogData data)
+        {
+            if (data.ty == 0) // success
+            {
+                Debug.Log(data.message.ToString());
+            }
+            if (data.ty == 1) // error
+            {
+                throw new Exception(data.message.ToString());
+            }
+            if (data.ty == 2) // progress
+            {
+                Progress.Report(_progressID, data.progress);
+            }
         }
 
         static double _bakeStartTime = 0.0;
@@ -231,6 +249,8 @@ namespace stilb
             _isComplete = false;
             _running = false;
             _context = null;
+            Progress.Finish(_progressID, Progress.Status.Succeeded);
+            _progressID = -1;
         }
 
         public static void Start(LightmapBaker baker, Bindings.StilbConfig config)
@@ -250,6 +270,8 @@ namespace stilb
 
             _running = true;
 
+            _progressID = Progress.Start("Baking Lightmaps", null, Progress.Options.None);
+
             _bakeStartTime = Time.realtimeSinceStartupAsDouble;
             var thread = new Thread(() =>
             {
@@ -259,7 +281,7 @@ namespace stilb
 
                     if (app == null)
                     {
-                        throw new Exception("stilb failed to launch");
+                        throw new Exception("failed to launch");
                     }
 
 
@@ -287,11 +309,7 @@ namespace stilb
                                     transparent = data.transparent,
                                 };
 
-                                int result0 = Bindings.app_add_mesh(app, exportedMesh);
-                                if (result0 != 0)
-                                {
-                                    throw new Exception($"failed to add mesh {i}");
-                                }
+                                Bindings.app_add_mesh(app, exportedMesh);
                             }
                         }
                     }
@@ -300,11 +318,7 @@ namespace stilb
 
                     foreach (var light in ctx.sceneLights)
                     {
-                        int result1 = Bindings.app_add_light(app, light);
-                        if (result1 != 0)
-                        {
-                            throw new Exception($"failed to add light");
-                        }
+                        Bindings.app_add_light(app, light);
                     }
 
                     foreach (var group in ctx.groups)
@@ -314,7 +328,7 @@ namespace stilb
                             fixed (Color32* albedoPtr = group.albedo)
                             fixed (Color* emissionsPtr = group.emission)
                             {
-                                int result2 = Bindings.app_add_lightmap_group(
+                                Bindings.app_add_lightmap_group(
                                     app,
                                     group.settings,
                                     (byte*)albedoPtr,
@@ -322,10 +336,6 @@ namespace stilb
                                     (float*)emissionsPtr,
                                     (uint)(group.emission.Length * 4)
                                 );
-                                if (result2 != 0)
-                                {
-                                    throw new Exception($"failed to add lightmap group");
-                                }
                             }
                         }
                         group.ClearPixels();
@@ -336,11 +346,7 @@ namespace stilb
                         Bindings.app_add_probe(app, position);
                     }
 
-                    int result = Bindings.app_run(app);
-                    if (result != 0)
-                    {
-                        throw new Exception($"stil failed to start");
-                    }
+                    Bindings.app_run(app);
 
                     Bindings.app_destroy(app);
                     _running = false;

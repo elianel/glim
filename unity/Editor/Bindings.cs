@@ -35,13 +35,16 @@ namespace stilb
             public readonly Vector3 camera_position;
             public readonly Vector3 camera_forward;
 
-            public readonly ReadbackCallback callback;
-            public readonly ReadbackProbesCallback probes_callback;
+            public readonly LogCallback log_callback;
+            public readonly LightmapReadCallback lightmap_read_callback;
+            public readonly ReadbackProbesCallback lightprobes_read_callback;
 
             public readonly TextureSamplerFilter texture_filter;
             public readonly uint probe_samples;
             public readonly uint probe_bounces;
             public readonly uint light_falloff;
+
+            [MarshalAs(UnmanagedType.I1)] public readonly bool mis;
 
             public readonly uint direct_samples;
             public readonly uint indirect_samples;
@@ -66,8 +69,9 @@ namespace stilb
                 this.preview_settings = preview_settings;
                 this.camera_position = camera_position;
                 this.camera_forward = camera_forward;
-                this.callback = Bake.OnReadback;
-                this.probes_callback = Bake.OnReadbackProbes;
+                this.log_callback = Bake.OnLogCalback;
+                this.lightmap_read_callback = Bake.OnReadbackLightmap;
+                this.lightprobes_read_callback = Bake.OnReadbackLightprobes;
                 this.texture_filter = texture_filter;
                 this.probe_samples = probe_samples;
                 this.probe_bounces = bounce_count;
@@ -76,6 +80,7 @@ namespace stilb
                 this.bounce_count = bounce_count;
                 this.vulkan_validation_layers = false;
                 this.seams_debug = false;
+                this.mis = false;
 
                 var currentPipeline = GraphicsSettings.currentRenderPipeline;
                 uint autoFalloff = 0;
@@ -127,22 +132,22 @@ namespace stilb
         public static extern IntPtr app_new(StilbConfig config);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int app_run(IntPtr app);
+        public static extern void app_run(IntPtr app);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int app_destroy(IntPtr app);
+        public static extern void app_destroy(IntPtr app);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int app_add_mesh(IntPtr app, Mesh mesh);
+        public static extern void app_add_mesh(IntPtr app, Mesh mesh);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int app_add_probe(IntPtr app, Vector3 position);
+        public static extern void app_add_probe(IntPtr app, Vector3 position);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int app_add_light(IntPtr app, Light light);
+        public static extern void app_add_light(IntPtr app, Light light);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static unsafe extern int app_add_lightmap_group(IntPtr app, LightmapSettings settings, byte* albedoPixels, uint albedoPixelsLength, float* emissionPixels, uint emissionPixelsLength);
+        public static unsafe extern void app_add_lightmap_group(IntPtr app, LightmapSettings settings, byte* albedoPixels, uint albedoPixelsLength, float* emissionPixels, uint emissionPixelsLength);
 
         [StructLayout(LayoutKind.Sequential)]
         public unsafe struct Mesh
@@ -212,7 +217,7 @@ namespace stilb
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct ReadbackProbeData
+        public struct LightprobesReadbackData
         {
             public IntPtr probes;
             public uint probes_count;
@@ -240,13 +245,42 @@ namespace stilb
         }
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void ReadbackProbesCallback(ReadbackProbeData data);
+        public delegate void ReadbackProbesCallback(LightprobesReadbackData data);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void ReadbackCallback(ReadbackData data);
+        public delegate void LightmapReadCallback(LightmapReadbackData data);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void LogCallback(LogData data);
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct ReadbackData
+        public struct LogData
+        {
+            public uint ty;
+            public float progress;
+            public FfiString message;
+        }
+
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FfiString
+        {
+            public IntPtr raw;
+            public uint length;
+
+            public override string ToString()
+            {
+                if (raw == IntPtr.Zero || length == 0)
+                {
+                    return string.Empty;
+                }
+
+                return Marshal.PtrToStringAnsi(raw, (int)length);
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct LightmapReadbackData
         {
             public uint group_index;
             public uint ty;
