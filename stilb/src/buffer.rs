@@ -22,7 +22,7 @@ pub struct Buffer {
     pub address: vk::DeviceAddress,
 
     bytes: u64,
-    name: String,
+    pub name: String,
 }
 
 impl Buffer {

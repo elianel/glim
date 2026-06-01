@@ -274,35 +274,26 @@ impl Texture2D {
         };
     }
 
-    pub fn read_pixels(&mut self, vk: &VulkanContext) -> Vec<f32> {
-        let mut dst: Vec<f32> = Vec::new();
-        self.read_pixels_to(vk, &mut dst);
-        dst
-    }
+    // pub fn read_pixels(&mut self, vk: &VulkanContext) -> Vec<f32> {
+    //     let mut dst: Vec<f32> = Vec::new();
+    //     self.read_pixels_to(vk, &mut dst);
+    //     dst
+    // }
 
-    pub fn read_pixels_to(&mut self, vk: &VulkanContext, dst: &mut Vec<f32>) {
-        let mut logic = |src: &[f32]| {
-            dst.clear();
-            dst.extend(src);
-        };
-        self.read_pixels_with(vk, &mut logic);
-    }
+    // pub fn add_pixels_to(&mut self, vk: &VulkanContext, dst: &mut [f32]) {
+    //     let mut logic = |src: &[f32]| {
+    //         assert!(dst.len() == src.len());
 
-    pub fn add_pixels_to(&mut self, vk: &VulkanContext, dst: &mut [f32]) {
-        let mut logic = |src: &[f32]| {
-            assert!(dst.len() == src.len());
+    //         for (d, s) in dst.iter_mut().zip(src) {
+    //             *d += s;
+    //         }
+    //     };
+    //     self.read_pixels_with(vk, &mut logic);
+    // }
 
-            for (d, s) in dst.iter_mut().zip(src) {
-                *d += s;
-            }
-        };
-        self.read_pixels_with(vk, &mut logic);
-    }
+    pub fn read_pixels(&mut self, vk: &VulkanContext, dst: &mut Vec<f32>) {
+        let start_time = std::time::Instant::now();
 
-    pub fn read_pixels_with<F>(&mut self, vk: &VulkanContext, mut logic: F)
-    where
-        F: FnMut(&[f32]),
-    {
         let size = self.get_device_size();
 
         let (staging_buffer, staging_memory, _) = vk.create_buffer(
@@ -376,13 +367,18 @@ impl Texture2D {
 
         unsafe {
             let slice = slice::from_raw_parts(ptr, pixel_count);
-            logic(slice);
+            dst.clear();
+            dst.extend(slice);
         }
 
         unsafe {
             vk.device.destroy_buffer(staging_buffer, None);
             vk.device.free_memory(staging_memory, None);
         };
+
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(start_time).as_secs_f32();
+        println!("read pixels in {}s", elapsed);
     }
 
     pub fn barrier<'a>(

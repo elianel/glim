@@ -948,7 +948,7 @@ fn render_lightmaps(app: &mut Stilb) {
             copy_image(&app.vk, diffuse, &mut previous_diffuses[i]);
         }
 
-        diffuse.read_pixels_to(&app.vk, &mut app.groups[i].lightmap_diffuse_final);
+        diffuse.read_pixels(&app.vk, &mut app.groups[i].lightmap_diffuse_final);
     }
 
     bake_direct_shader.destroy(&app.vk);
@@ -1090,7 +1090,7 @@ fn render_lightmaps(app: &mut Stilb) {
 
             unsafe { app.vk.device.queue_wait_idle(app.vk.compute_queue).unwrap() }
 
-            diffuse.read_pixels_to(&app.vk, &mut app.groups[i].lightmap_diffuse_previous_bounce);
+            diffuse.read_pixels(&app.vk, &mut app.groups[i].lightmap_diffuse_previous_bounce);
 
             let group = &mut app.groups[i];
             let src = &group.lightmap_diffuse_previous_bounce;
