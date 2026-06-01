@@ -31,7 +31,6 @@ use crate::{
 };
 
 mod bindings;
-mod bmp;
 mod buffer;
 mod camera;
 mod compute_shader;
@@ -449,9 +448,7 @@ fn initialize_render(app: &mut Stilb) {
 
     let total_triangles = (app.opaque_mesh.indices.len() + app.transparent_mesh.indices.len()) / 3;
 
-    if app.config.mis {
-        extract_emissive_triangles(app);
-    }
+    extract_emissive_triangles(app);
 
     app.preview_shader = load_preview_shader(
         &app.vk,
@@ -2178,75 +2175,77 @@ fn extract_emissive_triangles(app: &mut Stilb) {
     let indices = &app.opaque_mesh.indices;
     let mut emissive_triangles = Vec::new();
 
-    for (primitive_id, chunk) in indices.chunks(3).enumerate() {
-        if chunk.len() < 3 {
-            break;
-        }
+    if app.config.mis {
+        for (primitive_id, chunk) in indices.chunks(3).enumerate() {
+            if chunk.len() < 3 {
+                break;
+            }
 
-        let v0 = &vertices[chunk[0] as usize];
-        let v1 = &vertices[chunk[1] as usize];
-        let v2 = &vertices[chunk[2] as usize];
+            let v0 = &vertices[chunk[0] as usize];
+            let v1 = &vertices[chunk[1] as usize];
+            let v2 = &vertices[chunk[2] as usize];
 
-        let uv0 = v0.uv;
-        let uv1 = v1.uv;
-        let uv2 = v2.uv;
+            let uv0 = v0.uv;
+            let uv1 = v1.uv;
+            let uv2 = v2.uv;
 
-        let group_index = (v0.flags & 0xFFFF) as usize;
-        let group = &app.groups[group_index];
-        let pixels = &group.emission_pixels;
+            let group_index = (v0.flags & 0xFFFF) as usize;
+            let group = &app.groups[group_index];
+            let pixels = &group.emission_pixels;
 
-        let min_u = uv0.x.min(uv1.x).min(uv2.x).clamp(0.0, 1.0);
-        let max_u = uv0.x.max(uv1.x).max(uv2.x).clamp(0.0, 1.0);
-        let min_v = uv0.y.min(uv1.y).min(uv2.y).clamp(0.0, 1.0);
-        let max_v = uv0.y.max(uv1.y).max(uv2.y).clamp(0.0, 1.0);
+            let min_u = uv0.x.min(uv1.x).min(uv2.x).clamp(0.0, 1.0);
+            let max_u = uv0.x.max(uv1.x).max(uv2.x).clamp(0.0, 1.0);
+            let min_v = uv0.y.min(uv1.y).min(uv2.y).clamp(0.0, 1.0);
+            let max_v = uv0.y.max(uv1.y).max(uv2.y).clamp(0.0, 1.0);
 
-        let width = group.settings.width;
-        let height = group.settings.height;
+            let width = group.settings.width;
+            let height = group.settings.height;
 
-        let tex_w = width as f32;
-        let tex_h = height as f32;
+            let tex_w = width as f32;
+            let tex_h = height as f32;
 
-        let start_x = ((min_u * tex_w).floor() as u32).min(width - 1);
-        let end_x = ((max_u * tex_w).ceil() as u32).min(width - 1);
-        let start_y = ((min_v * tex_h).floor() as u32).min(height - 1);
-        let end_y = ((max_v * tex_h).ceil() as u32).min(height - 1);
+            let start_x = ((min_u * tex_w).floor() as u32).min(width - 1);
+            let end_x = ((max_u * tex_w).ceil() as u32).min(width - 1);
+            let start_y = ((min_v * tex_h).floor() as u32).min(height - 1);
+            let end_y = ((max_v * tex_h).ceil() as u32).min(height - 1);
 
-        let mut is_emissive = false;
-        'pixel_search: for y in start_y..=end_y {
-            for x in start_x..=end_x {
-                let p_u = (x as f32 + 0.5) / tex_w;
-                let p_v = (y as f32 + 0.5) / tex_h;
+            let mut is_emissive = false;
+            'pixel_search: for y in start_y..=end_y {
+                for x in start_x..=end_x {
+                    let p_u = (x as f32 + 0.5) / tex_w;
+                    let p_v = (y as f32 + 0.5) / tex_h;
 
-                let w0 = edge_side(uv1.x, uv1.y, uv2.x, uv2.y, p_u, p_v);
-                let w1 = edge_side(uv2.x, uv2.y, uv0.x, uv0.y, p_u, p_v);
-                let w2 = edge_side(uv0.x, uv0.y, uv1.x, uv1.y, p_u, p_v);
+                    let w0 = edge_side(uv1.x, uv1.y, uv2.x, uv2.y, p_u, p_v);
+                    let w1 = edge_side(uv2.x, uv2.y, uv0.x, uv0.y, p_u, p_v);
+                    let w2 = edge_side(uv0.x, uv0.y, uv1.x, uv1.y, p_u, p_v);
 
-                let is_inside =
-                    (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0) || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
+                    let is_inside = (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0)
+                        || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
 
-                if is_inside {
-                    let emissive_r = pixels[((y * width + x) * 4 + 0) as usize];
-                    let emissive_g = pixels[((y * width + x) * 4 + 1) as usize];
-                    let emissive_b = pixels[((y * width + x) * 4 + 2) as usize];
+                    if is_inside {
+                        let emissive_r = pixels[((y * width + x) * 4 + 0) as usize];
+                        let emissive_g = pixels[((y * width + x) * 4 + 1) as usize];
+                        let emissive_b = pixels[((y * width + x) * 4 + 2) as usize];
 
-                    if emissive_r > 0.0 || emissive_g > 0.0 || emissive_b > 0.0 {
-                        is_emissive = true;
-                        break 'pixel_search;
+                        if emissive_r > 0.0 || emissive_g > 0.0 || emissive_b > 0.0 {
+                            is_emissive = true;
+                            break 'pixel_search;
+                        }
                     }
                 }
             }
+
+            if is_emissive {
+                emissive_triangles.push(primitive_id as u32);
+            }
         }
 
-        if is_emissive {
-            emissive_triangles.push(primitive_id as u32);
-        }
+        let message = format!(
+            "Found {} emissive triangles for MIS",
+            emissive_triangles.len()
+        );
+        (app.config.log_callback)(LogMessage::message(&message));
     }
-
-    let message = format!(
-        "Found {} emissive triangles for MIS",
-        emissive_triangles.len()
-    );
-    (app.config.log_callback)(LogMessage::message(&message));
 
     if emissive_triangles.len() > 0 {
         app.emissive_triangles_buffer = Buffer::new(

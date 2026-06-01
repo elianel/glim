@@ -1,9 +1,13 @@
 #[cfg(test)]
 mod tests {
     use std::f32;
+    use std::fs::File;
+    use std::io::BufWriter;
+
+    use image::codecs::openexr::OpenExrEncoder;
+    use image::{ExtendedColorType, ImageEncoder};
 
     use crate::bindings::*;
-    use crate::bmp::save_bmp;
     use crate::lights::LightType;
     use crate::math::*;
     use crate::mesh::FfiMesh;
@@ -247,9 +251,9 @@ mod tests {
         let settings = LightmapSettings {
             width: w,
             height: h,
-            denoise: true,
-            dilate: true,
-            fix_seams: true,
+            denoise: false,
+            dilate: false,
+            fix_seams: false,
         };
         app_add_lightmap_group(
             app,
@@ -284,6 +288,30 @@ mod tests {
         let pixels = img.into_raw().iter().map(|&b| b as f32 / 255.0).collect();
 
         Ok((width, height, pixels))
+    }
+
+    #[allow(dead_code)]
+    pub fn save_exr_f32(pixels: &[f32], width: u32, height: u32, stride: u32, path: &str) {
+        let color_type = match stride {
+            3 => ExtendedColorType::Rgb32F,
+            4 => ExtendedColorType::Rgba32F,
+            _ => panic!("Unsupported stride: {}. Must be 1, 2, 3, or 4.", stride),
+        };
+
+        let file = File::create(path).expect("Failed to create EXR output file");
+        let writer = BufWriter::new(file);
+
+        let byte_buffer: &[u8] = unsafe {
+            std::slice::from_raw_parts(
+                pixels.as_ptr() as *const u8,
+                pixels.len() * std::mem::size_of::<f32>(),
+            )
+        };
+
+        let encoder = OpenExrEncoder::new(writer);
+        encoder
+            .write_image(byte_buffer, width, height, color_type)
+            .expect("Failed to encode and save OpenEXR image data");
     }
 
     #[allow(dead_code)]
@@ -380,8 +408,8 @@ mod tests {
     pub extern "C" fn test_save_callback(data: LightmapReadbackData) {
         let pixels = unsafe { std::slice::from_raw_parts(data.pixels, data.pixels_count as usize) };
 
-        let file_name = format!("../temp/diffuse_lightmap{}.bmp", data.group_index);
-        save_bmp(file_name.as_str(), data.width, data.height, &pixels).unwrap();
+        let file_name = format!("../temp/diffuse_lightmap{}.exr", data.group_index);
+        save_exr_f32(&pixels, data.width, data.height, 4, file_name.as_str());
     }
 
     #[unsafe(no_mangle)]
