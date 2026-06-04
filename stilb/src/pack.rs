@@ -11,7 +11,7 @@
 
 use crate::math::{Vector2, Vector3};
 
-struct UVPacker {
+pub struct UVPacker {
     charts: Vec<Chart>,
     width: u32,
     height: u32,
@@ -153,21 +153,28 @@ struct Bitmap {
 
 impl Bitmap {
     fn rasterize(chart: &Chart) -> Self {
-        let (mut min_x, mut max_x) = (u32::MAX, u32::MIN);
-        let (mut min_y, mut max_y) = (u32::MAX, u32::MIN);
+        let mut max_x = 0.0f32;
+        let mut max_y = 0.0f32;
 
         for uv in &chart.uvs {
-            min_x = min_x.min(uv.x.floor() as u32);
-            max_x = max_x.max(uv.x.ceil() as u32);
-
-            min_y = min_y.min(uv.y.floor() as u32);
-            max_y = max_y.max(uv.y.ceil() as u32);
+            max_x = max_x.max(uv.x);
+            max_y = max_y.max(uv.y);
         }
 
-        let width = max_x - min_x;
-        let height = max_y - min_y;
+        let width = max_x.ceil() as u32 + 1;
+        let height = max_y.ceil() as u32 + 1;
 
-        let pixels = vec![0; (width * height) as usize];
+        let resolution = (width * height) as usize;
+
+        let mut pixels = vec![0; resolution];
+
+        for chunk in chart.indices.chunks_exact(3) {
+            let a = chart.uvs[chunk[0] as usize];
+            let b = chart.uvs[chunk[1] as usize];
+            let c = chart.uvs[chunk[2] as usize];
+
+            rasterize_triangle_conservative(a, b, c, width, height, &mut pixels);
+        }
 
         Self {
             width,
@@ -175,4 +182,68 @@ impl Bitmap {
             pixels,
         }
     }
+
+    #[cfg(test)]
+    pub fn save_bmp(&self, path: &str) {
+        use image::GrayImage;
+        use image::Luma;
+
+        let img = GrayImage::from_fn(self.width, self.height, |x, y| {
+            let val = if self.pixels[(y * self.width + x) as usize] != 0 {
+                255
+            } else {
+                0
+            };
+            Luma([val])
+        });
+
+        img.save(path).expect("failed to save bitmap");
+    }
+}
+
+fn rasterize_triangle_conservative(
+    a: Vector2,
+    b: Vector2,
+    c: Vector2,
+    width: u32,
+    height: u32,
+    pixels: &mut [u8],
+) {
+    let tri_min_x = (a.x.min(b.x).min(c.x).floor() as i32 - 1).max(0) as u32;
+    let tri_min_y = (a.y.min(b.y).min(c.y).floor() as i32 - 1).max(0) as u32;
+    let tri_max_x = ((a.x.max(b.x).max(c.x).ceil() as u32) + 1).min(width);
+    let tri_max_y = ((a.y.max(b.y).max(c.y).ceil() as u32) + 1).min(height);
+
+    for py in tri_min_y..tri_max_y {
+        for px in tri_min_x..tri_max_x {
+            let fx = px as f32;
+            let fy = py as f32;
+
+            let corners = [
+                Vector2 { x: fx, y: fy },
+                Vector2 { x: fx + 1.0, y: fy },
+                Vector2 { x: fx, y: fy + 1.0 },
+                Vector2 {
+                    x: fx + 1.0,
+                    y: fy + 1.0,
+                },
+            ];
+
+            let covered = corners.iter().any(|&p| {
+                let e0 = edge(a, b, p);
+                let e1 = edge(b, c, p);
+                let e2 = edge(c, a, p);
+                (e0 >= 0.0 && e1 >= 0.0 && e2 >= 0.0) || (e0 <= 0.0 && e1 <= 0.0 && e2 <= 0.0)
+            });
+
+            if covered {
+                pixels[(py * width + px) as usize] = 1;
+            }
+        }
+    }
+}
+
+#[inline(always)]
+fn edge(a: Vector2, b: Vector2, p: Vector2) -> f32 {
+    (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
 }
