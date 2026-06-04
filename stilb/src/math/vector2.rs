@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, MulAssign, Sub};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -69,10 +69,32 @@ impl Sub for Vector2 {
     }
 }
 
-impl Mul for Vector2 {
+impl Mul<Vector2> for Vector2 {
     type Output = Vector2;
     fn mul(self, rhs: Vector2) -> Vector2 {
         Vector2::new(self.x * rhs.x, self.y * rhs.y)
+    }
+}
+
+impl Mul<f32> for Vector2 {
+    type Output = Vector2;
+    fn mul(self, rhs: f32) -> Vector2 {
+        Vector2::new(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl MulAssign<f32> for Vector2 {
+    fn mul_assign(&mut self, rhs: f32) {
+        self.x *= rhs;
+        self.y *= rhs;
+    }
+}
+
+// Implement *= for Vector2 * Vector2 (Component-wise)
+impl MulAssign<Vector2> for Vector2 {
+    fn mul_assign(&mut self, rhs: Vector2) {
+        self.x *= rhs.x;
+        self.y *= rhs.y;
     }
 }
 

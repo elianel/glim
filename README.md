@@ -24,7 +24,7 @@
 - [ ] Emissive multiplier
 - [ ] Indirect multiplier
 - [ ] Add support for CWBVH
-- [ ] Global fix seams
+- [ ] Global fix seams instead of per renderer
 
 ## Optimization
 - [ ] Light tree?

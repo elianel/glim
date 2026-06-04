@@ -39,6 +39,7 @@ mod lights;
 mod math;
 mod mesh;
 mod oidn;
+mod pack;
 mod seams;
 mod sh;
 mod shader_bindings;
