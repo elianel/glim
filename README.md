@@ -1,7 +1,7 @@
 # Todo
 
 ## Features
-- [ ] UV Packing
+- [x] UV Packing
   - [ ] Scale offset
   - [ ] Per chart
 - [ ] Bake lightprobes with new shader

@@ -150,9 +150,6 @@ namespace stilb
                         continue;
                     }
 
-                    // TODO: TEMP
-                    renderer.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
-
                     var so = renderer.lightmapScaleOffset;
                     so.z += uvOffset[offsetIndex].z;
                     so.w += uvOffset[offsetIndex].w;

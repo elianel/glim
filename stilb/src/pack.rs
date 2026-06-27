@@ -9,6 +9,9 @@
 // pack
 // if everything fits repeat with larger approximation or stop and scale charts back into [0, 1] uv range
 
+use core::slice;
+use std::ffi::c_void;
+
 use crate::math::{Vector2, Vector3};
 
 // ─── Chart ───────────────────────────────────────────────────────────────────
@@ -262,7 +265,7 @@ impl UVPacker {
     }
 
     pub fn get_scale_offset(&self, chart: usize) -> (Vector2, Vector2) {
-        let chart = &self.charts[chart];
+        let chart = self.charts.iter().find(|c| c.mesh_id == chart).unwrap();
 
         let scale = Vector2::new(
             chart.scale * chart.world_scale / self.width as f32,
@@ -605,4 +608,74 @@ fn rasterize_triangle_conservative(a: Vector2, b: Vector2, c: Vector2, bm: &mut 
 #[inline(always)]
 fn edge(a: Vector2, b: Vector2, p: Vector2) -> f32 {
     (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn uvpacker_create(
+    width: u32,
+    height: u32,
+    iterations: u32,
+    brute_force: bool,
+) -> *mut UVPacker {
+    Box::into_raw(Box::new(UVPacker::new(
+        width,
+        height,
+        iterations,
+        brute_force,
+    ))) as *mut UVPacker
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn uvpacker_add_mesh(
+    handle: *mut UVPacker,
+    positions: *const Vector3,
+    position_count: u32,
+    uvs: *const Vector2,
+    uv_count: u32,
+    indices: *const u32,
+    index_count: u32,
+    scale_multiplier: f32,
+    mesh_id: u32,
+) {
+    let positions =
+        unsafe { slice::from_raw_parts(positions as *const Vector3, position_count as usize) };
+
+    let uvs = unsafe { slice::from_raw_parts(uvs as *const Vector2, uv_count as usize) };
+
+    let indices = unsafe { slice::from_raw_parts(indices, index_count as usize) };
+
+    let packer = unsafe { &mut *handle };
+
+    packer.add_mesh(positions, uvs, indices, scale_multiplier, mesh_id as usize);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn uvpacker_pack(handle: *mut UVPacker) -> bool {
+    let packer = unsafe { &mut *handle };
+    packer.pack()
+}
+
+#[repr(C)]
+pub struct ScaleOffset {
+    pub scale: Vector2,
+    pub offset: Vector2,
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn uvpacker_get_scale_offset(
+    handle: *mut UVPacker,
+    chart: u32,
+) -> ScaleOffset {
+    let packer = unsafe { &mut *handle };
+
+    let (scale, offset) = packer.get_scale_offset(chart as usize);
+
+    ScaleOffset { scale, offset }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn uvpacker_destroy(handle: *mut UVPacker) {
+    if !handle.is_null() {
+        let _ = unsafe { Box::from_raw(handle) };
+    }
 }

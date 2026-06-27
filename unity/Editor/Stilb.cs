@@ -23,11 +23,12 @@ namespace stilb
             settings = new Bindings.LightmapSettings(group);
 
             using var metaAlbedo = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Albedo);
-            using var metaEmission = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Emission);
 
             albedo = metaAlbedo
                 .CreateAtlas(renderers, MetaTexture.AtlasType.Albedo)
                 .GetData<Color32>().ToArray();
+
+            using var metaEmission = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Emission);
 
             emission = metaEmission
                 .CreateAtlas(renderers, MetaTexture.AtlasType.Emission)
@@ -234,6 +235,60 @@ namespace stilb
             {
                 var rendererArray = renderers.ToArray();
 
+                if (lightmapGroup.packing == UVPackingType.ScaleOffset)
+                {
+                    var packer = UVPacking.uvpacker_create(lightmapGroup.resolution, lightmapGroup.resolution, 5, true);
+                    for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
+                    {
+                        Renderer r = renderers[rendererIndex];
+                        var mf = r.GetComponent<MeshFilter>();
+                        var mesh = mf.sharedMesh;
+
+                        bool hasUv0 = mesh.HasVertexAttribute(VertexAttribute.TexCoord0);
+                        bool hasUv1 = mesh.HasVertexAttribute(VertexAttribute.TexCoord1);
+
+                        var positions = mesh.vertices;
+                        var uvs = hasUv1 ? mesh.uv2 : mesh.uv;
+                        var indices = mesh.triangles;
+                        float scale = 1.0f;
+                        if (r is MeshRenderer mr)
+                        {
+                            scale = mr.scaleInLightmap;
+                        }
+
+                        unsafe
+                        {
+                            fixed (Vector3* p = positions)
+                            fixed (Vector2* uv = uvs)
+                            fixed (int* i = indices)
+                            {
+                                UVPacking.uvpacker_add_mesh(packer, p, (uint)positions.Length, uv, (uint)uvs.Length, i, (uint)indices.Length, scale, (uint)rendererIndex);
+                            }
+                        }
+                    }
+
+                    UVPacking.uvpacker_pack(packer);
+
+                    for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
+                    {
+                        Renderer r = renderers[rendererIndex];
+
+                        var so = UVPacking.uvpacker_get_scale_offset(packer, (uint)rendererIndex);
+                        r.lightmapScaleOffset = so;
+                        Debug.Log(so);
+                        EditorUtility.SetDirty(r);
+                    }
+
+                    UVPacking.uvpacker_destroy(packer);
+                }
+                else
+                {
+                    foreach (var r in renderers)
+                    {
+                        r.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
+                    }
+                }
+
                 if (!config.is_preview)
                 {
                     var rendererDataIds = lda.FindProperty("m_LightmappedRendererDataIDs");
@@ -255,9 +310,9 @@ namespace stilb
                         ids.longValue = soi.PrefabLFID;
 
                         lmData.FindPropertyRelative("lightmapIndex").intValue = (int)groupIndex;
-                        var scaleOffset = new Vector4(1, 1, 0, 0);
+                        var scaleOffset = mr.lightmapScaleOffset;
                         lmData.FindPropertyRelative("lightmapST").vector4Value = scaleOffset;
-                        lmData.FindPropertyRelative("lightmapSTDynamic").vector4Value = scaleOffset;
+                        lmData.FindPropertyRelative("lightmapSTDynamic").vector4Value = new Vector4(1, 1, 0, 0);
 
                         // lmData.FindPropertyRelative("uvMesh");
                         lmData.FindPropertyRelative("terrainDynamicUVST").vector4Value = scaleOffset;
@@ -477,14 +532,13 @@ namespace stilb
                     }
                 }
 
-                // Vector4 scaleOffset = renderers[i].lightmapScaleOffset;
-                // Vector2 scale = new(scaleOffset.x, scaleOffset.y);
-                // Vector2 offset = new(scaleOffset.z, scaleOffset.w);
-                // for (int j = 0; j < uvs.Length; j++)
-                // {
-                //     uvs[j] = uvs[j] + scale + offset;
-                // }
-
+                Vector4 scaleOffset = renderers[i].lightmapScaleOffset;
+                Vector2 scale = new(scaleOffset.x, scaleOffset.y);
+                Vector2 offset = new(scaleOffset.z, scaleOffset.w);
+                for (int j = 0; j < uvs.Length; j++)
+                {
+                    uvs[j] = uvs[j] * scale + offset;
+                }
 
                 var data = new MeshData
                 {
