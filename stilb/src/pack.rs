@@ -22,6 +22,7 @@ pub struct Chart {
     pub indices: Vec<u32>,
     pub mesh_id: usize,
     pub uv_area: f64,
+    pub uv_bounds_area: f64,
     pub bitmap: Bitmap,
 
     pub chart_uv_min: Vector2,
@@ -65,6 +66,33 @@ impl Chart {
         }
 
         area * 0.5
+    }
+
+    fn calculate_uv_bounds_area(&self) -> f64 {
+        let mut min_x = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+
+        for uv in &self.uvs {
+            if uv.x < min_x {
+                min_x = uv.x;
+            }
+            if uv.x > max_x {
+                max_x = uv.x;
+            }
+            if uv.y < min_y {
+                min_y = uv.y;
+            }
+            if uv.y > max_y {
+                max_y = uv.y;
+            }
+        }
+
+        let width = (max_x - min_x) as f64;
+        let height = (max_y - min_y) as f64;
+
+        (width * height).abs()
     }
 
     pub fn bitmap(&self) -> &Bitmap {
@@ -148,6 +176,7 @@ impl UVPacker {
             indices: indices.to_vec(),
             mesh_id,
             uv_area: 0.0,
+            uv_bounds_area: 0.0,
             bitmap: Bitmap::empty(),
             placed_offset: (0, 0),
             scale: 1.0,
@@ -163,6 +192,7 @@ impl UVPacker {
 
         chart.base_uvs = chart.uvs.clone();
         chart.uv_area = chart.calculate_uv_area();
+        chart.uv_bounds_area = chart.calculate_uv_bounds_area();
         chart.world_scale = scale;
 
         self.charts.push(chart);
@@ -173,9 +203,15 @@ impl UVPacker {
             return true;
         }
 
+        // self.charts.sort_by(|a, b| {
+        //     b.uv_area
+        //         .partial_cmp(&a.uv_area)
+        //         .unwrap_or(std::cmp::Ordering::Equal)
+        // });
+
         self.charts.sort_by(|a, b| {
-            b.uv_area
-                .partial_cmp(&a.uv_area)
+            b.uv_bounds_area
+                .partial_cmp(&a.uv_bounds_area)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
