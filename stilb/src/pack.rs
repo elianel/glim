@@ -263,8 +263,8 @@ impl UVPacker {
 
             // Write final [0, 1] atlas UVs derived from the frozen base_uvs.
             for (uv, &base) in chart.uvs.iter_mut().zip(chart.base_uvs.iter()) {
-                uv.x = (base.x * best_scale + ox as f32 + padding) * inv_w;
-                uv.y = (base.y * best_scale + oy as f32 + padding) * inv_h;
+                uv.x = (base.x * best_scale + ox as f32) * inv_w;
+                uv.y = (base.y * best_scale + oy as f32) * inv_h;
             }
         }
 
@@ -280,8 +280,8 @@ impl UVPacker {
         );
 
         let atlas_offset = Vector2::new(
-            (chart.placed_offset.0 as f32 + self.padding) / self.width as f32,
-            (chart.placed_offset.1 as f32 + self.padding) / self.height as f32,
+            (chart.placed_offset.0 as f32) / self.width as f32,
+            (chart.placed_offset.1 as f32) / self.height as f32,
         );
 
         let offset = atlas_offset - chart.chart_uv_min * scale;
@@ -543,20 +543,18 @@ impl Bitmap {
             max_y = max_y.max(uv.y);
         }
 
-        let pad = padding.ceil() as u32;
-        let width = max_x.ceil() as u32 + 2 * pad;
-        let height = max_y.ceil() as u32 + 2 * pad;
+        let width = ((max_x + 1.5).floor() as i32 + 1) as u32;
+        let height = ((max_y + 1.5).floor() as i32 + 1) as u32;
+
+        let uv_offset = Vector2::new(1.0, 1.0);
 
         let mut bm = Self::new(width, height);
 
-        let extra_padding = (padding - 1.0).max(0.0);
-
-        let offset = Vector2::new(padding, padding);
         for chunk in chart.indices.chunks_exact(3) {
-            let a = chart.uvs[chunk[0] as usize] + offset;
-            let b = chart.uvs[chunk[1] as usize] + offset;
-            let c = chart.uvs[chunk[2] as usize] + offset;
-            rasterize_triangle_conservative(a, b, c, extra_padding, &mut bm);
+            let a = chart.uvs[chunk[0] as usize] + uv_offset;
+            let b = chart.uvs[chunk[1] as usize] + uv_offset;
+            let c = chart.uvs[chunk[2] as usize] + uv_offset;
+            rasterize_triangle_bilinear(a, b, c, &mut bm);
         }
 
         bm
@@ -583,51 +581,137 @@ impl Bitmap {
 
 // ─── Triangle rasterisation ──────────────────────────────────────────────────
 
+// #[inline(always)]
+// fn rasterize_triangle_conservative(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitmap) {
+//     let tri_min_x = (a.x.min(b.x).min(c.x).floor() as i32 - 1).max(0) as u32;
+//     let tri_min_y = (a.y.min(b.y).min(c.y).floor() as i32 - 1).max(0) as u32;
+//     let tri_max_x = (a.x.max(b.x).max(c.x).ceil() as u32 + 1).min(bm.width);
+//     let tri_max_y = (a.y.max(b.y).max(c.y).ceil() as u32 + 1).min(bm.height);
+
+//     for py in tri_min_y..tri_max_y {
+//         for px in tri_min_x..tri_max_x {
+//             let fx = px as f32;
+//             let fy = py as f32;
+
+//             let corners = [
+//                 Vector2 { x: fx, y: fy },
+//                 Vector2 { x: fx + 1.0, y: fy },
+//                 Vector2 { x: fx, y: fy + 1.0 },
+//                 Vector2 {
+//                     x: fx + 1.0,
+//                     y: fy + 1.0,
+//                 },
+//             ];
+
+//             let covered = corners.iter().any(|&p| {
+//                 let e0 = edge(a, b, p) * (b - a).length();
+//                 let e1 = edge(b, c, p) * (c - b).length();
+//                 let e2 = edge(c, a, p) * (a - c).length();
+
+//                 (e0 >= 0.0 && e1 >= 0.0 && e2 >= 0.0) || (e0 <= 0.0 && e1 <= 0.0 && e2 <= 0.0)
+//             });
+
+//             if covered {
+//                 bm.set_pixel(px, py);
+//             }
+//         }
+//     }
+// }
+
 #[inline(always)]
-fn rasterize_triangle_conservative(
-    a: Vector2,
-    b: Vector2,
-    c: Vector2,
-    padding: f32,
-    bm: &mut Bitmap,
-) {
-    let tri_min_x = (a.x.min(b.x).min(c.x).floor() as i32 - 1).max(0) as u32;
-    let tri_min_y = (a.y.min(b.y).min(c.y).floor() as i32 - 1).max(0) as u32;
-    let tri_max_x = (a.x.max(b.x).max(c.x).ceil() as u32 + 1).min(bm.width);
-    let tri_max_y = (a.y.max(b.y).max(c.y).ceil() as u32 + 1).min(bm.height);
+fn rasterize_triangle_bilinear(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitmap) {
+    let min_x = a.x.min(b.x).min(c.x);
+    let max_x = a.x.max(b.x).max(c.x);
+    let min_y = a.y.min(b.y).min(c.y);
+    let max_y = a.y.max(b.y).max(c.y);
 
-    let area = edge(a, b, c);
-    let sign = if area >= 0.0 { 1.0 } else { -1.0 };
+    // Exact texel range whose open (center‑shifted) rectangles can touch the triangle
+    let tri_min_x = ((min_x - 0.5).floor() as i32).max(0) as u32;
+    let tri_max_x = ((max_x + 0.5).ceil() as i32).min(bm.width as i32).max(0) as u32;
+    let tri_min_y = ((min_y - 0.5).floor() as i32).max(0) as u32;
+    let tri_max_y = ((max_y + 0.5).ceil() as i32).min(bm.height as i32).max(0) as u32;
 
-    let mut padding = padding;
-    if sign < 0.0 {
-        padding = -padding;
-    }
+    let edges = [b - a, c - b, a - c];
+    let normals = [
+        Vector2 {
+            x: -edges[0].y,
+            y: edges[0].x,
+        },
+        Vector2 {
+            x: -edges[1].y,
+            y: edges[1].x,
+        },
+        Vector2 {
+            x: -edges[2].y,
+            y: edges[2].x,
+        },
+    ];
+
+    let axes = [
+        Vector2 { x: 1.0, y: 0.0 },
+        Vector2 { x: 0.0, y: 1.0 },
+        normals[0],
+        normals[1],
+        normals[2],
+    ];
+
+    const EPS: f32 = 1e-6;
 
     for py in tri_min_y..tri_max_y {
         for px in tri_min_x..tri_max_x {
-            let fx = px as f32;
-            let fy = py as f32;
-
-            let corners = [
-                Vector2 { x: fx, y: fy },
-                Vector2 { x: fx + 1.0, y: fy },
-                Vector2 { x: fx, y: fy + 1.0 },
+            let rect_min = Vector2 {
+                x: px as f32 - 0.5,
+                y: py as f32 - 0.5,
+            };
+            let rect_max = Vector2 {
+                x: px as f32 + 1.5,
+                y: py as f32 + 1.5,
+            };
+            let rect_corners = [
+                rect_min,
                 Vector2 {
-                    x: fx + 1.0,
-                    y: fy + 1.0,
+                    x: rect_max.x,
+                    y: rect_min.y,
                 },
+                Vector2 {
+                    x: rect_min.x,
+                    y: rect_max.y,
+                },
+                rect_max,
             ];
 
-            let covered = corners.iter().any(|&p| {
-                let e0 = edge(a, b, p) + padding * (b - a).length();
-                let e1 = edge(b, c, p) + padding * (c - b).length();
-                let e2 = edge(c, a, p) + padding * (a - c).length();
+            let mut separated = false;
+            for axis in &axes {
+                let tri_proj = [
+                    a.x * axis.x + a.y * axis.y,
+                    b.x * axis.x + b.y * axis.y,
+                    c.x * axis.x + c.y * axis.y,
+                ];
+                let tri_min_proj = tri_proj[0].min(tri_proj[1]).min(tri_proj[2]);
+                let tri_max_proj = tri_proj[0].max(tri_proj[1]).max(tri_proj[2]);
 
-                (e0 >= 0.0 && e1 >= 0.0 && e2 >= 0.0) || (e0 <= 0.0 && e1 <= 0.0 && e2 <= 0.0)
-            });
+                let rect_proj = [
+                    rect_corners[0].x * axis.x + rect_corners[0].y * axis.y,
+                    rect_corners[1].x * axis.x + rect_corners[1].y * axis.y,
+                    rect_corners[2].x * axis.x + rect_corners[2].y * axis.y,
+                    rect_corners[3].x * axis.x + rect_corners[3].y * axis.y,
+                ];
+                let rect_min_proj = rect_proj[0]
+                    .min(rect_proj[1])
+                    .min(rect_proj[2])
+                    .min(rect_proj[3]);
+                let rect_max_proj = rect_proj[0]
+                    .max(rect_proj[1])
+                    .max(rect_proj[2])
+                    .max(rect_proj[3]);
 
-            if covered {
+                if tri_max_proj <= rect_min_proj + EPS || rect_max_proj <= tri_min_proj + EPS {
+                    separated = true;
+                    break;
+                }
+            }
+
+            if !separated {
                 bm.set_pixel(px, py);
             }
         }
