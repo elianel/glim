@@ -24,8 +24,8 @@ namespace stilb
         public bool denoise = true;
         public bool fixSeams = true;
         public UVPackingType uvPacking = UVPackingType.ScaleOffset;
-        public float padding = 2.0f;
-        public bool bruteForcePacking = false;
+        public bool packingBruteForce = false;
+        [Range(5, 25)] public uint packingIterations = 5;
         public LightmapSaveFormat format = LightmapSaveFormat.EXR;
         public Texture2D.EXRFlags exrFlags = Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP;
     }

@@ -125,11 +125,10 @@ pub struct UVPacker {
     brute_force: bool,
     pub target: Option<Bitmap>,
     iterations: u32,
-    padding: f32,
 }
 
 impl UVPacker {
-    pub fn new(width: u32, height: u32, padding: f32, iterations: u32, brute_force: bool) -> Self {
+    pub fn new(width: u32, height: u32, iterations: u32, brute_force: bool) -> Self {
         Self {
             charts: Vec::new(),
             width,
@@ -138,7 +137,6 @@ impl UVPacker {
             brute_force,
             target: None,
             iterations,
-            padding,
         }
     }
 
@@ -250,7 +248,6 @@ impl UVPacker {
 
         let inv_w = 1.0 / self.width as f32;
         let inv_h = 1.0 / self.height as f32;
-        let padding = self.padding;
 
         for (chart, &(ox, oy)) in self.charts.iter_mut().zip(placements.iter()) {
             chart.placed_offset = (ox, oy);
@@ -258,7 +255,7 @@ impl UVPacker {
             // Rebuild the bitmap at the winning scale (useful for debugging /
             // downstream consumers of chart.bitmap()).
             chart.scale_uvs_from_base(best_scale);
-            let bm = Bitmap::rasterize(chart, padding);
+            let bm = Bitmap::rasterize(chart);
             chart.bitmap = bm;
 
             // Write final [0, 1] atlas UVs derived from the frozen base_uvs.
@@ -295,11 +292,10 @@ impl UVPacker {
     fn try_pack_at_scale(&mut self, scale: f32) -> Option<Vec<(u32, u32)>> {
         let brute_force = self.brute_force;
 
-        let padding = self.padding;
         // Rasterise all charts at this scale (mutable pass).
         for chart in &mut self.charts {
             chart.scale_uvs_from_base(scale);
-            chart.bitmap = Bitmap::rasterize(chart, padding);
+            chart.bitmap = Bitmap::rasterize(chart);
         }
 
         let mut target = Bitmap::new(self.width, self.height);
@@ -535,7 +531,7 @@ impl Bitmap {
         }
     }
 
-    fn rasterize(chart: &Chart, padding: f32) -> Self {
+    fn rasterize(chart: &Chart) -> Self {
         let mut max_x = 0.0_f32;
         let mut max_y = 0.0_f32;
         for uv in &chart.uvs {
@@ -579,45 +575,6 @@ impl Bitmap {
     }
 }
 
-// ─── Triangle rasterisation ──────────────────────────────────────────────────
-
-// #[inline(always)]
-// fn rasterize_triangle_conservative(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitmap) {
-//     let tri_min_x = (a.x.min(b.x).min(c.x).floor() as i32 - 1).max(0) as u32;
-//     let tri_min_y = (a.y.min(b.y).min(c.y).floor() as i32 - 1).max(0) as u32;
-//     let tri_max_x = (a.x.max(b.x).max(c.x).ceil() as u32 + 1).min(bm.width);
-//     let tri_max_y = (a.y.max(b.y).max(c.y).ceil() as u32 + 1).min(bm.height);
-
-//     for py in tri_min_y..tri_max_y {
-//         for px in tri_min_x..tri_max_x {
-//             let fx = px as f32;
-//             let fy = py as f32;
-
-//             let corners = [
-//                 Vector2 { x: fx, y: fy },
-//                 Vector2 { x: fx + 1.0, y: fy },
-//                 Vector2 { x: fx, y: fy + 1.0 },
-//                 Vector2 {
-//                     x: fx + 1.0,
-//                     y: fy + 1.0,
-//                 },
-//             ];
-
-//             let covered = corners.iter().any(|&p| {
-//                 let e0 = edge(a, b, p) * (b - a).length();
-//                 let e1 = edge(b, c, p) * (c - b).length();
-//                 let e2 = edge(c, a, p) * (a - c).length();
-
-//                 (e0 >= 0.0 && e1 >= 0.0 && e2 >= 0.0) || (e0 <= 0.0 && e1 <= 0.0 && e2 <= 0.0)
-//             });
-
-//             if covered {
-//                 bm.set_pixel(px, py);
-//             }
-//         }
-//     }
-// }
-
 #[inline(always)]
 fn rasterize_triangle_bilinear(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitmap) {
     let min_x = a.x.min(b.x).min(c.x);
@@ -630,6 +587,9 @@ fn rasterize_triangle_bilinear(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitm
     let tri_max_x = ((max_x + 0.5).ceil() as i32).min(bm.width as i32).max(0) as u32;
     let tri_min_y = ((min_y - 0.5).floor() as i32).max(0) as u32;
     let tri_max_y = ((max_y + 0.5).ceil() as i32).min(bm.height as i32).max(0) as u32;
+
+    let extent = (max_x - min_x).max(max_y - min_y).max(1.0);
+    let eps = 1e-5 * extent;
 
     let edges = [b - a, c - b, a - c];
     let normals = [
@@ -654,8 +614,6 @@ fn rasterize_triangle_bilinear(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitm
         normals[1],
         normals[2],
     ];
-
-    const EPS: f32 = 1e-6;
 
     for py in tri_min_y..tri_max_y {
         for px in tri_min_x..tri_max_x {
@@ -705,7 +663,7 @@ fn rasterize_triangle_bilinear(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitm
                     .max(rect_proj[2])
                     .max(rect_proj[3]);
 
-                if tri_max_proj <= rect_min_proj + EPS || rect_max_proj <= tri_min_proj + EPS {
+                if tri_max_proj <= rect_min_proj + eps || rect_max_proj <= tri_min_proj + eps {
                     separated = true;
                     break;
                 }
@@ -718,23 +676,16 @@ fn rasterize_triangle_bilinear(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitm
     }
 }
 
-#[inline(always)]
-fn edge(a: Vector2, b: Vector2, p: Vector2) -> f32 {
-    (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
-}
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn uvpacker_create(
     width: u32,
     height: u32,
-    padding: f32,
     iterations: u32,
     brute_force: bool,
 ) -> *mut UVPacker {
     Box::into_raw(Box::new(UVPacker::new(
         width,
         height,
-        padding,
         iterations,
         brute_force,
     ))) as *mut UVPacker
