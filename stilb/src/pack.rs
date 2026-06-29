@@ -500,30 +500,6 @@ impl Bitmap {
         false
     }
 
-    fn dilate(&mut self, radius: u32) {
-        if radius == 0 {
-            return;
-        }
-        let original = self.pixels.clone();
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let wi = y as usize * self.row_stride + x as usize / 64;
-                if original[wi] & (1u64 << (x % 64)) == 0 {
-                    continue;
-                }
-                let x0 = x.saturating_sub(radius);
-                let x1 = (x + radius).min(self.width - 1);
-                let y0 = y.saturating_sub(radius);
-                let y1 = (y + radius).min(self.height - 1);
-                for dy in y0..=y1 {
-                    for dx in x0..=x1 {
-                        self.set_pixel(dx, dy);
-                    }
-                }
-            }
-        }
-    }
-
     /// Stamp `other` at (ox, oy) into `self` (bitwise OR).  Used after a
     /// successful placement to mark the atlas region as occupied.
     fn paint(&mut self, other: &Bitmap, ox: u32, oy: u32) {
@@ -560,8 +536,6 @@ impl Bitmap {
     }
 
     fn rasterize(chart: &Chart, padding: f32) -> Self {
-        let pad = padding.ceil() as u32;
-
         let mut max_x = 0.0_f32;
         let mut max_y = 0.0_f32;
         for uv in &chart.uvs {
@@ -569,19 +543,22 @@ impl Bitmap {
             max_y = max_y.max(uv.y);
         }
 
-        let width = max_x.ceil() as u32 + 1 + 2 * pad;
-        let height = max_y.ceil() as u32 + 1 + 2 * pad;
+        let pad = padding.ceil() as u32;
+        let width = max_x.ceil() as u32 + 2 * pad;
+        let height = max_y.ceil() as u32 + 2 * pad;
+
         let mut bm = Self::new(width, height);
+
+        let extra_padding = (padding - 1.0).max(0.0);
 
         let offset = Vector2::new(padding, padding);
         for chunk in chart.indices.chunks_exact(3) {
             let a = chart.uvs[chunk[0] as usize] + offset;
             let b = chart.uvs[chunk[1] as usize] + offset;
             let c = chart.uvs[chunk[2] as usize] + offset;
-            rasterize_triangle_conservative(a, b, c, &mut bm);
+            rasterize_triangle_conservative(a, b, c, extra_padding, &mut bm);
         }
 
-        bm.dilate(pad);
         bm
     }
 
@@ -607,11 +584,25 @@ impl Bitmap {
 // ─── Triangle rasterisation ──────────────────────────────────────────────────
 
 #[inline(always)]
-fn rasterize_triangle_conservative(a: Vector2, b: Vector2, c: Vector2, bm: &mut Bitmap) {
+fn rasterize_triangle_conservative(
+    a: Vector2,
+    b: Vector2,
+    c: Vector2,
+    padding: f32,
+    bm: &mut Bitmap,
+) {
     let tri_min_x = (a.x.min(b.x).min(c.x).floor() as i32 - 1).max(0) as u32;
     let tri_min_y = (a.y.min(b.y).min(c.y).floor() as i32 - 1).max(0) as u32;
     let tri_max_x = (a.x.max(b.x).max(c.x).ceil() as u32 + 1).min(bm.width);
     let tri_max_y = (a.y.max(b.y).max(c.y).ceil() as u32 + 1).min(bm.height);
+
+    let area = edge(a, b, c);
+    let sign = if area >= 0.0 { 1.0 } else { -1.0 };
+
+    let mut padding = padding;
+    if sign < 0.0 {
+        padding = -padding;
+    }
 
     for py in tri_min_y..tri_max_y {
         for px in tri_min_x..tri_max_x {
@@ -629,9 +620,10 @@ fn rasterize_triangle_conservative(a: Vector2, b: Vector2, c: Vector2, bm: &mut 
             ];
 
             let covered = corners.iter().any(|&p| {
-                let e0 = edge(a, b, p);
-                let e1 = edge(b, c, p);
-                let e2 = edge(c, a, p);
+                let e0 = edge(a, b, p) + padding * (b - a).length();
+                let e1 = edge(b, c, p) + padding * (c - b).length();
+                let e2 = edge(c, a, p) + padding * (a - c).length();
+
                 (e0 >= 0.0 && e1 >= 0.0 && e2 >= 0.0) || (e0 <= 0.0 && e1 <= 0.0 && e2 <= 0.0)
             });
 
