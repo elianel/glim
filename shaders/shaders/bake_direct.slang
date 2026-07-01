@@ -34,7 +34,10 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, Surface surface, flo
     }
     else
     {
-        L = RandomPointOnSphere(light.position, light.ShadowRangeOrAngle, xi);
+        if (light.ShadowRangeOrAngle > 0.0)
+        {
+            L = RandomPointOnOrientedDisk(light.position, light.ShadowRangeOrAngle, surface.P, xi);
+        }
 
         float3 positionToLight = L - surface.P;
         L = normalize(positionToLight);

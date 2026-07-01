@@ -80,3 +80,23 @@ float LightFalloff(float distanceSquare, float invRangeSq)
         return GetUnityBuiltInAttenuation(distanceSquare, invRangeSq);
     }
 }
+
+float3 RandomPointOnOrientedDisk(float3 center, float radius, float3 positionWS, float2 xi)
+{
+    float3 centerToSurface = positionWS - center;
+    float distToCenter = length(centerToSurface);
+    float3 lightForward = centerToSurface / max(1e-5, distToCenter);
+
+    float3 lightRight = normalize(cross(float3(0.0, 1.0, 0.0), lightForward));
+    if (abs(lightForward.y) > 0.99)
+    {
+        lightRight = normalize(cross(float3(1.0, 0.0, 0.0), lightForward));
+    }
+    float3 lightUp = cross(lightForward, lightRight);
+
+    float r = sqrt(xi.x);
+    float phi = 2.0 * float.getPi() * xi.y;
+    float2 diskPoint = float2(r * cos(phi), r * sin(phi));
+
+    return center + (lightRight * diskPoint.x + lightUp * diskPoint.y) * radius;
+}
