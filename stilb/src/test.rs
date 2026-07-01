@@ -40,7 +40,7 @@ mod tests {
             seams_debug: false,
             direct_samples: 256,
             indirect_samples: 64,
-            bounce_count: 0,
+            bounce_count: 5,
             log_callback: log_callback,
             mis: false,
         };
@@ -254,9 +254,9 @@ mod tests {
         let settings = LightmapSettings {
             width: w,
             height: h,
-            denoise: false,
-            dilate: false,
-            fix_seams: false,
+            denoise: true,
+            dilate: true,
+            fix_seams: true,
         };
         app_add_lightmap_group(
             app,
