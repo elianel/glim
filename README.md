@@ -5,20 +5,27 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 ## Notes
 
 - Currently requires a GPU with `VK_KHR_ray_query` extension, however it will support any GPU with a software fallback in the future. Check GPU support here `https://vulkan.gpuinfo.org/listdevices.php`, most modern GPUs should work.
-- While the lightmapper is working, it is still in early stages and might lack some features
+- While the lightmapper is fully working, it is still in early stages, theres room for improvement and it might lack some features
 
 ## Features
 
 - Works on Windows and Linux
-- Hardware accelerated ray-tracing (can take advantage of RTX)
-- Realtime preview
+- Fast hardware accelerated ray-tracing (can utilize RTX)
+- Realtime Preview
 - Denoiser
 - Seam stiching with a least squares solver
 - Light Probe baking (L2 Spherical Harmonics)
 - UV Packing
 - Physically correct
+- Lightmap Groups
+- Easy to use (aims to be mostly a drop in replacement)
+- Small binary size
 - Emissive materials, Directional, Spot and Point Lights
-- Unity URP and Built-In pipeline supported
+- Fully standalone, with Unity URP and Built-In pipeline support
+
+## How to use
+
+1. todo
 
 ## Stack
 
