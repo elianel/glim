@@ -50,6 +50,8 @@
 - [ ] Some negatively scaled exported objects have flipped normals
 - [ ] Preview emission doesnt have 1 bounce
 - [ ] Can only bake one currently loaded scene
+- [ ] Preview crashes when closing on linux
+- [ ] OpenGL unity is flipped xd
 
 
 # Complete

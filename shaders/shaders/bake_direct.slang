@@ -77,7 +77,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     float2 xiLight = SobolBurleySample2D(indexing.x, 0, indexing.y, indexing.z);
 
-    float4 color = 0.0;
+    float4 color = float4(0.0, 0.0, 0.0, 1.0);
     float3 throughput = float3(1.0);
 
     for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
@@ -97,21 +97,18 @@ void main(uint3 threadID: SV_DispatchThreadID)
     Hit bounceHit;
     if (TraceRay(bounceRay, bounceHit))
     {
-        color.a = 1;
-
-        Surface previousSurface = surface;
         surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
 
         if (!bounceHit.frontFace)
         {
             if (!surface.backfaceGI)
             {
-                return;
+                color.a = 0;
             }
         }
 
         float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-        color.rgb += bounceEmission;
+        color.rgb += bounceEmission * color.a;
     }
 
     float4 previous = LightmapDiffuse[coords];

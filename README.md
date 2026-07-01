@@ -25,7 +25,10 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
 ## How to use
 
-1. todo
+
+1. Install OpenImageDenoise
+
+todo
 
 ## Stack
 
@@ -34,5 +37,5 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
 ## Building
 
-- Add the [slang](https://github.com/shader-slang/slang) compiler to PATH
+- Add the [slang](https://github.com/shader-slang/slang) compiler at PATH
 - `cargo build --release`
