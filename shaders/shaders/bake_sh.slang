@@ -35,6 +35,8 @@ void main(uint3 threadID: SV_DispatchThreadID)
     uint sampleCount = Push.maxSamples;
     uint lightCount = Push.lightCount;
 
+    float sampleScale = 1.0 / float(sampleCount);
+
     uint sobolIndexMask = ~0u;
     SamplingPattern pattern = SamplingPattern::BlueNoisePure;
     uint pixelSeed = RNGPixelInit(uint2(probeIndex.x, 0), pattern);
@@ -49,7 +51,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
     {
         float3 L;
         float3 color = ShadeLightDirectSH(Lights[lightIndex], probePosition, xiLight, throughput, L);
-        AccumulateL2(probe, sampleIndex, color, L);
+        AccumulateL2(probe, sampleIndex, color * sampleScale, L);
     }
 
     float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
@@ -70,12 +72,12 @@ void main(uint3 threadID: SV_DispatchThreadID)
         if (!backface)
         {
             float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-            AccumulateL2(probe, sampleIndex, bounceEmission.rgb * 4, bounceRay.D);
+            AccumulateL2(probe, sampleIndex, bounceEmission.rgb * 4 * sampleScale, bounceRay.D);
 
             float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
             // todo why flipped
             float3 previousDiffuse = SamplePreviousDiffuse(float2(surface.uv.x, 1.0 - surface.uv.y), surface.lightmapGroup).rgb;
-            AccumulateL2(probe, sampleIndex, previousDiffuse * bounceAlbedo * 4, bounceRay.D);
+            AccumulateL2(probe, sampleIndex, previousDiffuse * bounceAlbedo * 4 * sampleScale, bounceRay.D);
         }
     }
 

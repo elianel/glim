@@ -32,22 +32,3 @@ pub struct SHProbeL2 {
     pub l22: Vector3,
     pub pad9: u32,
 }
-
-impl SHProbeL2 {
-    #[inline]
-    pub fn normalize(&mut self, samples: u32) {
-        let scale = 1.0 / (samples as f32);
-
-        self.l0 = self.l0 * scale;
-
-        self.l1_1 = self.l1_1 * scale;
-        self.l10 = self.l10 * scale;
-        self.l11 = self.l11 * scale;
-
-        self.l2_2 = self.l2_2 * scale;
-        self.l2_1 = self.l2_1 * scale;
-        self.l20 = self.l20 * scale;
-        self.l21 = self.l21 * scale;
-        self.l22 = self.l22 * scale;
-    }
-}

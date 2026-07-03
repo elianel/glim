@@ -824,26 +824,22 @@ fn render_lightmaps(app: &mut Stilb) {
 
     let bounce_count = app.config.bounce_count;
 
-    let has_bounces = bounce_count > 0;
+    for i in 0..app.groups.len() {
+        let group = &app.groups[i];
+        let settings = group.settings.clone();
 
-    if has_bounces {
-        for i in 0..app.groups.len() {
-            let group = &app.groups[i];
-            let settings = group.settings.clone();
+        let diffuse = Texture2D::new(
+            &app.vk,
+            settings.width,
+            settings.height,
+            vk::Format::R32G32B32A32_SFLOAT,
+            vk::ImageUsageFlags::SAMPLED
+                | vk::ImageUsageFlags::TRANSFER_SRC
+                | vk::ImageUsageFlags::TRANSFER_DST,
+            String::from("Diffuse Copy"),
+        );
 
-            let diffuse = Texture2D::new(
-                &app.vk,
-                settings.width,
-                settings.height,
-                vk::Format::R32G32B32A32_SFLOAT,
-                vk::ImageUsageFlags::SAMPLED
-                    | vk::ImageUsageFlags::TRANSFER_SRC
-                    | vk::ImageUsageFlags::TRANSFER_DST,
-                String::from("Diffuse Copy"),
-            );
-
-            previous_diffuses.push(diffuse);
-        }
+        previous_diffuses.push(diffuse);
     }
 
     let log = app.config.log_callback;
@@ -977,7 +973,7 @@ fn render_lightmaps(app: &mut Stilb) {
             }
         }
 
-        if has_bounces {
+        if bounce_count > 0 {
             copy_image(&app.vk, diffuse, &mut previous_diffuses[i]);
         }
 
@@ -1152,16 +1148,16 @@ fn render_lightmaps(app: &mut Stilb) {
                 let pixels = &group.lightmap_diffuse_previous_bounce;
                 previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
             }
-        } else {
-            for i in 0..app.groups.len() {
-                let group = &mut app.groups[i];
-                let pixels = &group.lightmap_diffuse_final;
-                previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
-            }
         }
     }
 
     bake_bounce_shader.destroy(&app.vk);
+
+    for i in 0..app.groups.len() {
+        let group = &mut app.groups[i];
+        let pixels = &group.lightmap_diffuse_final;
+        previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
+    }
 
     for i in 0..app.groups.len() {
         let group = &mut app.groups[i];
@@ -1334,10 +1330,6 @@ fn render_lightmaps(app: &mut Stilb) {
         // println!("Probes:\n{:#?}", &app.probes);
         app.vk
             .download_buffer(app.probes_buffer.buffer, &mut app.probes);
-
-        for probe in &mut app.probes {
-            probe.normalize(probes_samples);
-        }
 
         let readback_data = LightprobesReadbackData {
             probes: app.probes.as_ptr(),
