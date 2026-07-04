@@ -241,7 +241,7 @@ namespace stilb
                     unclaimedRenderers.Add(r);
                 }
             }
-            var globalGroup = baker.globalGroup == null ? ScriptableObject.CreateInstance<LightmapGroup>() : baker.globalGroup;
+            var globalGroup = baker.group == null ? ScriptableObject.CreateInstance<LightmapGroup>() : baker.group;
             if (unclaimedRenderers.Count > 0)
             {
                 groupMap[globalGroup] = unclaimedRenderers;
@@ -253,10 +253,10 @@ namespace stilb
             {
                 var rendererArray = renderers.ToArray();
 
-                if (lightmapGroup.uvPacking == UVPackingType.ScaleOffset)
+                if (lightmapGroup.packingType == UVPackingType.ScaleOffset)
                 {
-                    bool bruteForce = lightmapGroup.packingBruteForce;
-                    var packer = UVPacking.uvpacker_create(lightmapGroup.resolution, lightmapGroup.resolution, lightmapGroup.packingIterations, bruteForce);
+                    bool bruteForce = lightmapGroup.bruteForce;
+                    var packer = UVPacking.uvpacker_create(lightmapGroup.Width, lightmapGroup.Height, lightmapGroup.packingIterations, bruteForce);
                     for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
                     {
                         Renderer r = renderers[rendererIndex];
@@ -361,7 +361,7 @@ namespace stilb
                 throw new InvalidOperationException("No lightmap groups found.");
             }
 
-            if (!baker.globalGroup)
+            if (!baker.group)
             {
                 ScriptableObject.DestroyImmediate(globalGroup);
             }

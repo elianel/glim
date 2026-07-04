@@ -1,7 +1,10 @@
 #if UNITY_EDITOR
 using System;
+using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace stilb
 {
@@ -21,16 +24,18 @@ namespace stilb
             Linear = 1,
         }
 
-        public TextureSamplerFilter filter = TextureSamplerFilter.Nearest;
+        [NonSerialized] public TextureSamplerFilter filter = TextureSamplerFilter.Nearest;
 
         [Header("Bake Settings")]
         public uint directSamples = 512;
         public uint indirectSamples = 1024;
+        public uint bounces = 5;
+        public LightFalloffType lightFalloff = LightFalloffType.Auto;
+
         public uint lightProbeSamples = 4096;
         public float lightProbeRadius = 0.0f;
-        public uint bounces = 5;
-        [NonSerialized] public bool multipleImportanceSampling = false;
 
+        [NonSerialized] public bool multipleImportanceSampling = false;
         public bool reflectionProbesSuperSampling = true;
 
 
@@ -39,9 +44,50 @@ namespace stilb
         public uint previewHeight = 1024;
         public uint previewThrottle = 2;
 
-        [Header("Bake Settings")]
-        public LightmapGroup globalGroup;
-        public LightFalloffType lightFalloff = LightFalloffType.Auto;
+        [Header("Default Group")]
+        public LightmapGroup group;
+
+        [MenuItem("Stilb/Bake")]
+        public static void CreateLightmapBaker()
+        {
+            var scene = SceneManager.GetActiveScene();
+            var roots = scene.GetRootGameObjects();
+
+            var baker = roots.SelectMany(x => x.GetComponentsInChildren<LightmapBaker>()).FirstOrDefault();
+            if (!baker)
+            {
+                var go = new GameObject("Stilb Lightmap Baker")
+                {
+                    tag = "EditorOnly"
+                };
+
+                go.transform.SetSiblingIndex(0);
+
+                baker = go.AddComponent<LightmapBaker>();
+
+                var group = ScriptableObject.CreateInstance<LightmapGroup>();
+                baker.group = group;
+                EditorUtility.SetDirty(baker);
+
+                var scenePath = scene.path;
+                string sceneName = scene.name;
+                string outputFolder = Path.Combine(Path.GetDirectoryName(scenePath), sceneName);
+
+                string assetPath = Path.Combine(outputFolder, $"{scene.name} Lightmap Group.asset");
+
+                if (!AssetDatabase.IsValidFolder(outputFolder))
+                {
+                    AssetDatabase.CreateFolder(Path.GetDirectoryName(scenePath), sceneName);
+                }
+
+
+                AssetDatabase.CreateAsset(group, assetPath);
+            }
+
+            Selection.activeGameObject = baker.gameObject;
+        }
     }
+
+
 }
 #endif

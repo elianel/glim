@@ -25,11 +25,19 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
 ## How to use
 
-1. Install Open Image Denoise 2
+### First time setup
+- Install Open Image Denoise 2
   - Windows: `https://github.com/RenderKit/oidn/releases`
   - Fedora Linux: `sudo dnf install oidn`
-
+  - Add to path
+  - 
 todo
+
+### Baking
+
+- Setup the scene (mark objects as static, generate lightmap uvs, add lights with baked mode etc.)
+- Menu Item `Stilb > Bake`
+- Adjust settings and press `Generate Lighting`
 
 ## Stack
 

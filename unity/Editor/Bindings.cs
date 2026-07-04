@@ -123,7 +123,7 @@ namespace stilb
             }
 
             public LightmapSettings(LightmapGroup group) :
-                this(group.resolution, group.resolution, group.dilate, group.denoise, group.fixSeams)
+                this(group.Width, group.Height, group.dilate, group.denoise, group.fixSeams)
             {
                 return;
             }

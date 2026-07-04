@@ -6,7 +6,7 @@
   - [ ] Per chart
   - [x] Padding
 - [x] Spot lights
-- [ ] Bake lightprobes with new shader
+- [x] Bake lightprobes with new shader
 - [ ] Directional lightmaps
 - [ ] Terrain Support
 - [ ] Higher resolution alpha

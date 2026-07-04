@@ -4,7 +4,6 @@ using UnityEngine;
 
 namespace stilb
 {
-
     public enum LightmapSaveFormat : int
     {
         EXR = 0,
@@ -17,16 +16,33 @@ namespace stilb
         ScaleOffset = 1,
     }
 
+    public enum Resolution : uint
+    {
+        _64 = 64,
+        _128 = 128,
+        _256 = 256,
+        _512 = 512,
+        _1024 = 1024,
+        _2048 = 2048,
+        _4096 = 4096,
+        _8192 = 8192
+    }
+
     [CreateAssetMenu]
     public class LightmapGroup : ScriptableObject
     {
-        public uint resolution = 512;
+        public Resolution resolution = Resolution._1024;
+        public uint Width => (uint)resolution;
+        public uint Height => (uint)resolution;
+
+        public UVPackingType packingType = UVPackingType.ScaleOffset;
+        [Range(5, 25)] public uint packingIterations = 5;
+        public bool bruteForce = false;
+
         public bool dilate = true;
         public bool denoise = true;
         public bool fixSeams = true;
-        public UVPackingType uvPacking = UVPackingType.ScaleOffset;
-        public bool packingBruteForce = false;
-        [Range(5, 25)] public uint packingIterations = 5;
+
         public LightmapSaveFormat format = LightmapSaveFormat.EXR;
         [NonSerialized] public Texture2D.EXRFlags exrFlags = Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP;
     }
