@@ -43,6 +43,8 @@ namespace stilb
         public uint previewWidth = 1024;
         public uint previewHeight = 1024;
         public uint previewThrottle = 2;
+        public uint previewSamples = 512;
+        public uint previewBounces = 2;
 
         [Header("Default Group")]
         public LightmapGroup group;

@@ -77,9 +77,9 @@ namespace stilb
 
                     var config = new Bindings.StilbConfig(
                         Bindings.CoordinateSystem.Unity,
-                        baker.directSamples,
-                        0,
-                        baker.bounces,
+                        baker.previewSamples,
+                        baker.previewSamples,
+                        baker.previewBounces,
                         true,
                         baker.previewThrottle,
                         previewSettings,

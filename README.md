@@ -21,17 +21,26 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 - Easy to use (aims to be mostly a drop in replacement)
 - Small binary size
 - Emissive materials, Directional, Spot and Point Lights
+- Shadow radius
 - Fully standalone, with Unity URP and Built-In pipeline support
 
 ## How to use
 
-### First time setup
-- Install Open Image Denoise 2
-  - Windows: `https://github.com/RenderKit/oidn/releases`
-  - Fedora Linux: `sudo dnf install oidn`
-  - Add to path
-  - 
-todo
+### Denoiser Setup
+
+#### Windows
+
+1. Download the Windows `.zip` from `https://github.com/RenderKit/oidn/releases`
+2. Extract it anywhere on your computer (e.g. `C:\oidn`)
+3. Set the `OpenImageDenoise_DIR` environment variable to that extracted folder:
+   - Press **Start**, type **"environment variables"**, and open **"Edit environment variables for your account"**
+   - Click **New...**
+   - Name: `OpenImageDenoise_DIR`
+   - Value: the path to the extracted folder (e.g. `C:\oidn`)
+   - Click **OK** on all windows
+
+#### Linux
+- Fedora Linux: `sudo dnf install oidn`
 
 ### Baking
 

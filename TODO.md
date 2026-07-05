@@ -8,8 +8,8 @@
 - [x] Spot lights
 - [x] Bake lightprobes with new shader
 - [ ] Directional lightmaps
-- [ ] Terrain Support
 - [ ] Higher resolution alpha
+- [ ] Terrain Support
 - [ ] Sky light
 - [ ] Light Cookies
 - [ ] Area lights
