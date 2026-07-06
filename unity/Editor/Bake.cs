@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -202,6 +203,10 @@ namespace stilb
                 }
                 AssetDatabase.MoveAsset(LightingData.TempLightingDataPath, destPath);
 
+#if VRC_LIGHT_VOLUMES
+                CreateLightVolumeTextures(_context, outputFolder);
+#endif
+
                 // apply new asset
                 var newLda = AssetDatabase.LoadAssetAtPath<LightingDataAsset>(destPath);
                 using var lda2 = new SerializedObject(newLda);
@@ -233,6 +238,108 @@ namespace stilb
             _progressID = -1;
         }
 
+        public static Vector3[] GenerateProbeVolume(Vector3 center, Vector3 size, Vector3Int resolution)
+        {
+            Vector3[] positions = new Vector3[resolution.x * resolution.y * resolution.z];
+
+            Vector3 step = new Vector3(
+                size.x / Mathf.Max(1, resolution.x - 1),
+                size.y / Mathf.Max(1, resolution.y - 1),
+                size.z / Mathf.Max(1, resolution.z - 1)
+            );
+
+            Vector3 origin = center - size * 0.5f;
+
+            int i = 0;
+            for (int z = 0; z < resolution.z; z++)
+                for (int y = 0; y < resolution.y; y++)
+                    for (int x = 0; x < resolution.x; x++)
+                    {
+                        positions[i++] = origin + Vector3.Scale(new Vector3(x, y, z), step);
+                    }
+
+            return positions;
+        }
+
+#if VRC_LIGHT_VOLUMES
+        static void AddLightProbeVolumes(LightmapBaker baker, BakeContext ctx)
+        {
+            var vrclv = ctx.scene.GetRootGameObjects().SelectMany(x => x.GetComponentsInChildren<VRCLightVolumes.LightVolume>(false)).ToArray();
+
+            for (int i = 0; i < vrclv.Length; i++)
+            {
+                var lv = vrclv[i];
+                var lvData = new LightProbeVolumeData
+                {
+                    indexStart = ctx.probePositions.Count,
+                    id = i,
+                    resolution = lv.Resolution,
+                };
+
+                ctx.probeVolumes.Add(lvData);
+                var volume = GenerateProbeVolume(lv.transform.position, lv.transform.lossyScale, lv.Resolution);
+                ctx.probePositions.AddRange(volume);
+            }
+        }
+
+        static void CreateLightVolumeTextures(BakeContext ctx, string directory)
+        {
+            var lvs = ctx.probeVolumes;
+
+            for (int volumeIndex = 0; volumeIndex < lvs.Count; volumeIndex++)
+            {
+                var data = lvs[volumeIndex];
+
+                int w = data.resolution.x;
+                int h = data.resolution.y;
+                int d = data.resolution.z;
+
+                int probeCount = w * h * d;
+
+                TextureFormat format = TextureFormat.RGBAHalf;
+                Texture3D tex0 = new(w, h, d, format, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                Texture3D tex1 = new(w, h, d, format, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                Texture3D tex2 = new(w, h, d, format, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+
+                Color[] tex0Col = new Color[probeCount];
+                Color[] tex1Col = new Color[probeCount];
+                Color[] tex2Col = new Color[probeCount];
+
+                float coeff = 1.0f;// todo
+                // float coeff = 1.7699115f;// todo
+
+                int pixelIndex = 0;
+                for (int i = data.indexStart; i < data.indexStart + probeCount; i++)
+                {
+                    var probe = _bakeProbesResults[i];
+
+                    var L0 = probe.L0;
+                    var L1x = probe.L11;
+                    var L1y = probe.L1_1;
+                    var L1z = probe.L10;
+
+                    var L1r = new Vector3(L1x.x, L1y.x, L1z.x);
+                    var L1g = new Vector3(L1x.y, L1y.y, L1z.y);
+                    var L1b = new Vector3(L1x.z, L1y.z, L1z.z);
+
+                    tex0Col[pixelIndex] = new Color(L0.x, L0.y, L0.z, L1r.z * coeff);
+                    tex1Col[pixelIndex] = new Color(L1r.x * coeff, L1g.x * coeff, L1b.x * coeff, L1g.z * coeff);
+                    tex2Col[pixelIndex] = new Color(L1r.y * coeff, L1g.y * coeff, L1b.y * coeff, L1b.z * coeff);
+
+                    pixelIndex++;
+                }
+
+                tex0.SetPixels(tex0Col);
+                tex1.SetPixels(tex1Col);
+                tex2.SetPixels(tex2Col);
+
+                AssetDatabase.CreateAsset(tex0, Path.Combine(directory, $"LightProbeVolume_{volumeIndex}-0.asset"));
+                AssetDatabase.CreateAsset(tex1, Path.Combine(directory, $"LightProbeVolume_{volumeIndex}-1.asset"));
+                AssetDatabase.CreateAsset(tex2, Path.Combine(directory, $"LightProbeVolume_{volumeIndex}-2.asset"));
+            }
+        }
+#endif
+
         public static void Start(LightmapBaker baker, Bindings.StilbConfig config)
         {
             if (_running)
@@ -246,6 +353,11 @@ namespace stilb
             EditorApplication.update += PollBakeComplete;
 
             var ctx = new BakeContext(baker, config);
+
+#if VRC_LIGHT_VOLUMES
+            AddLightProbeVolumes(baker, ctx);
+#endif
+
             _context = ctx;
 
             _running = true;

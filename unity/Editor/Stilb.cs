@@ -58,6 +58,13 @@ namespace stilb
         }
     }
 
+    public class LightProbeVolumeData
+    {
+        public int id;
+        public int indexStart;
+        public Vector3Int resolution;
+    }
+
     public class BakeContext
     {
         public List<Bindings.Light> sceneLights = new();
@@ -65,6 +72,8 @@ namespace stilb
         public List<BakeContextGroup> groups = new();
 
         public List<Vector3> probePositions = new();
+
+        public List<LightProbeVolumeData> probeVolumes = new();
 
         public LightingDataAsset storage;
         public Scene scene;
