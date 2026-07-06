@@ -5,8 +5,8 @@ Shader "Unlit/Light Mesh"
         [Enum(Point, 0, Spot, 1, Directional, 2, Area, 4)] _LightType ("Light Type", Int) = 0
         _LightColor ("Light Color", Color) = (1,1,1,1)
         _LightIntensity ("Light Intensity", Float) = 1.0
-        _LightRadius ("Light Radius", Float) = 0.1
-        _LightSpotAngle ("Spot Angle", Float) = 30
+        _LightSpotAngle ("Spot Angle", Range(0, 179)) = 30
+        _LightDirectionalAngle ("Directional Angle", Float) = 0.526
     }
     SubShader
     {
@@ -22,11 +22,11 @@ Shader "Unlit/Light Mesh"
 
             #include "UnityCG.cginc"
 
-            float _LightRadius;
             float4 _LightColor;
             float _LightIntensity;
             uint _LightType;
             float _LightSpotAngle;
+            float _LightDirectionalAngle;
 
             struct Attributes
             {
@@ -49,7 +49,13 @@ Shader "Unlit/Light Mesh"
             {
                 Varyings o;
 
-                float3 positionWS = mul(UNITY_MATRIX_M, float4(attributes.positionOS, 1.0)).xyz;
+                float3 positionOS = attributes.positionOS;
+                if (_LightType == 4)
+                {
+                    positionOS.z = 0.0;
+                }
+
+                float3 positionWS = mul(UNITY_MATRIX_M, float4(positionOS, 1.0)).xyz;
                 o.positionCS = mul(UNITY_MATRIX_VP, float4(positionWS, 1.0));
 
                 o.positionWS = positionWS;
@@ -106,17 +112,27 @@ Shader "Unlit/Light Mesh"
                 float3 ro = CameraPositionWS();
                 float3 rd = -normalize(ro - varyings.positionWS);
 
-                float radius = _LightRadius;
+                float radius = objectScale * 0.5;
 
                 if (_LightType == 2)
                 {
                     float dist = _ProjectionParams.z;
                     lightPosition = CameraPositionWS() + objectForward * dist;
-                    radius = dist * tan(radians(_LightRadius * 0.5));
+                    radius = dist * tan(radians(_LightDirectionalAngle * 0.5));
                 }
 
                 float t = SphereIntersect(ro, rd, float4(lightPosition, radius));
+
                 float3 positionWS = ro + rd * t;
+
+                if (_LightType == 4)
+                {
+                    positionWS = varyings.positionWS;
+                    float3 toCam = normalize(CameraPositionWS() - positionWS);
+                    bool facingCam = dot(objectForward, toCam) < 0.0;
+
+                    t = facingCam ? 0 : -1;
+                }
 
                 if (_LightType == 1)
                 {
