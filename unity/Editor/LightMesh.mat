@@ -32,8 +32,8 @@ Material:
     m_Floats:
     - _BoxProjection: 1
     - _LightIntensity: 1
-    - _LightRadius: 0.05
-    - _LightType: 0
+    - _LightRadius: 0.526
+    - _LightType: 2
     m_Colors:
     - _LightColor: {r: 1, g: 1, b: 1, a: 1}
     - _LightPosition: {r: 0.1647127, g: 0.2609188, b: -0.05759916, a: 0}

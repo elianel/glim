@@ -31,7 +31,7 @@ namespace stilb
     [CreateAssetMenu]
     public class LightmapGroup : ScriptableObject
     {
-        public Resolution resolution = Resolution._1024;
+        public Resolution resolution = Resolution._2048;
         public uint Width => (uint)resolution;
         public uint Height => (uint)resolution;
 

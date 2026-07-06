@@ -74,7 +74,7 @@ Shader "Unlit/Light Mesh"
 
             FragOutput frag(Varyings varyings)
             {
-                float3 objectPosition = UNITY_MATRIX_M._m03_m13_m23;
+                float3 spherePosition = UNITY_MATRIX_M._m03_m13_m23;
 
                 float objectScale = float3(
                     length(UNITY_MATRIX_M._m00_m10_m20),
@@ -85,7 +85,17 @@ Shader "Unlit/Light Mesh"
                 float3 ro = CameraPositionWS();
                 float3 rd = -normalize(ro - varyings.positionWS);
 
-                float t = SphereIntersect(ro, rd, float4(objectPosition, _LightRadius));
+                float radius = _LightRadius;
+
+                if (_LightType == 2)
+                {
+                    float3 objectForward = -normalize(UNITY_MATRIX_M._m02_m12_m22);
+                    float dist = _ProjectionParams.z;
+                    spherePosition = CameraPositionWS() + objectForward * dist;
+                    radius = dist * tan(radians(_LightRadius * 0.5));
+                }
+
+                float t = SphereIntersect(ro, rd, float4(spherePosition, radius));
 
                 if (t <= -1.0)
                 {
