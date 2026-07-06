@@ -71,7 +71,7 @@ namespace stilb
         public List<Stilb.MeshData> sceneMesh = new();
         public List<BakeContextGroup> groups = new();
 
-        public List<Vector3> probePositions = new();
+        public List<Vector4> probePositions = new();
 
         public List<LightProbeVolumeData> probeVolumes = new();
 
@@ -378,6 +378,8 @@ namespace stilb
                 ScriptableObject.DestroyImmediate(globalGroup);
             }
 
+            float defaultProbeRadius = baker.lightProbeRadius;
+
             if (!config.is_preview)
             {
                 var lightProbesRef = lda.FindProperty("m_LightProbes").objectReferenceValue;
@@ -389,7 +391,9 @@ namespace stilb
                 for (int i = 0; i < probesCount; i++)
                 {
                     var element = probePositions.GetArrayElementAtIndex(i);
-                    this.probePositions.Add(element.vector3Value);
+                    var probe = (Vector4)element.vector3Value;
+                    probe.w = defaultProbeRadius;
+                    this.probePositions.Add(probe);
                 }
 
                 lda.ApplyModifiedPropertiesWithoutUndo();

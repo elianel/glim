@@ -270,7 +270,7 @@ mod tests {
         if test_probes {
             let mut offset = 0.1;
             for _ in 0..5 {
-                app_add_probe(app, Vector3::new(0.0, offset, 0.0));
+                app_add_probe(app, Vector3::new(0.0, offset, 0.0), 0.0);
                 offset += 0.1;
             }
         }

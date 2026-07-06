@@ -143,11 +143,6 @@ pub struct BakeSHPushConstants {
     pub max_samples: u32,
     pub sample_index: u32,
     pub probes_count: u32,
-
-    pub probes_radius: f32,
-    pub pad0: u32,
-    pub pad1: u32,
-    pub pad2: u32,
 }
 
 #[repr(C)]

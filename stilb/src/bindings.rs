@@ -34,7 +34,6 @@ pub struct StilbConfig {
     pub texture_filter: TextureSamplerFilter,
     pub probe_samples: u32,
     pub probe_bounces: u32,
-    pub probe_radius: f32,
     pub light_falloff: LightFalloffType,
 
     pub mis: bool,
@@ -308,7 +307,7 @@ pub extern "C" fn app_run(app: *mut Stilb) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3) {
+pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3, radius: f32) {
     if app.is_null() {
         return;
     }
@@ -321,7 +320,7 @@ pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3) {
 
         let probe = SHProbeL2 {
             position,
-            pad0: 0,
+            radius,
             l0: Vector3::ZERO,
             pad1: 0,
             l1_1: Vector3::ZERO,

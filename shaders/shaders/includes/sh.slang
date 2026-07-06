@@ -7,7 +7,7 @@
 struct SHProbeL2
 {
     float3 position;
-    float pad0;
+    float radius;
     float4 sh[9];
 };
 

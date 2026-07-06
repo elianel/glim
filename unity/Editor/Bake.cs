@@ -238,24 +238,30 @@ namespace stilb
             _progressID = -1;
         }
 
-        public static Vector3[] GenerateProbeVolume(Vector3 center, Vector3 size, Vector3Int resolution)
+        public static Vector4[] GenerateProbeVolume(Vector3 center, Vector3 size, Vector3Int resolution)
         {
-            Vector3[] positions = new Vector3[resolution.x * resolution.y * resolution.z];
+            Vector4[] positions = new Vector4[resolution.x * resolution.y * resolution.z];
 
-            Vector3 step = new Vector3(
-                size.x / Mathf.Max(1, resolution.x - 1),
-                size.y / Mathf.Max(1, resolution.y - 1),
-                size.z / Mathf.Max(1, resolution.z - 1)
+            Vector3 texelSize = new(
+                size.x / resolution.x,
+                size.y / resolution.y,
+                size.z / resolution.z
             );
 
             Vector3 origin = center - size * 0.5f;
+
+            origin += texelSize / 2.0f;
+
+            float radius = Mathf.Min(texelSize.x, texelSize.y, texelSize.z) / 2.0f;
 
             int i = 0;
             for (int z = 0; z < resolution.z; z++)
                 for (int y = 0; y < resolution.y; y++)
                     for (int x = 0; x < resolution.x; x++)
                     {
-                        positions[i++] = origin + Vector3.Scale(new Vector3(x, y, z), step);
+                        Vector4 probe = origin + Vector3.Scale(new Vector3(x, y, z), texelSize);
+                        probe.w = radius;
+                        positions[i++] = probe;
                     }
 
             return positions;
@@ -381,6 +387,7 @@ namespace stilb
                 _progressID = Progress.Start("Baking Lightmaps", null, Progress.Options.None);
             }
 
+
             _bakeStartTime = Time.realtimeSinceStartupAsDouble;
             var thread = new Thread(() =>
             {
@@ -452,7 +459,9 @@ namespace stilb
 
                     foreach (var position in ctx.probePositions)
                     {
-                        Bindings.app_add_probe(app, position);
+                        Vector3 p = (Vector3)position;
+                        float r = position.w;
+                        Bindings.app_add_probe(app, p, r);
                     }
 
                     Bindings.app_run(app);

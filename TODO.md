@@ -4,7 +4,7 @@
 - [ ] Some negatively scaled exported objects have flipped normals
 - [ ] Include OIDN dlls
 - [ ] Adjust sample positions before baking
-- [ ] Light Volumes
+- [x] Light Volumes
 
 ## Features
 - [x] UV Packing

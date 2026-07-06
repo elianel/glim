@@ -6,7 +6,7 @@ use crate::math::Vector3;
 #[derive(Debug, Copy, Clone)]
 pub struct SHProbeL2 {
     pub position: Vector3,
-    pub pad0: u32,
+    pub radius: f32,
 
     // L0
     pub l0: Vector3,

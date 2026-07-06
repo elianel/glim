@@ -12,16 +12,11 @@ struct PushConstants
     uint maxSamples;
     uint sampleIndex;
     uint probeCount;
-
-    float probesRadius;
-    uint pad0;
-    uint pad1;
-    uint pad2;
 };
 
 [shader("compute")]
-[numthreads(64, 1, 1)]
-void main(uint3 threadID: SV_DispatchThreadID)
+    [numthreads(64, 1, 1)] void
+    main(uint3 threadID : SV_DispatchThreadID)
 {
     uint probeIndex = threadID.x;
 
@@ -47,7 +42,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     float2 xiLight = SobolBurleySample2D(indexing.x, 0, indexing.y, indexing.z);
 
-    float probesRadius = Push.probesRadius;
+    float probesRadius = probe.radius;
     if (probesRadius > 0.0)
     {
         probePosition = RandomPointOnSphere(probePosition, probesRadius, xiLight);
