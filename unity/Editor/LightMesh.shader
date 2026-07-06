@@ -6,6 +6,7 @@ Shader "Unlit/Light Mesh"
         _LightColor ("Light Color", Color) = (1,1,1,1)
         _LightIntensity ("Light Intensity", Float) = 1.0
         _LightRadius ("Light Radius", Float) = 0.1
+        _LightSpotAngle ("Spot Angle", Float) = 30
     }
     SubShader
     {
@@ -25,6 +26,7 @@ Shader "Unlit/Light Mesh"
             float4 _LightColor;
             float _LightIntensity;
             uint _LightType;
+            float _LightSpotAngle;
 
             struct Attributes
             {
@@ -66,6 +68,23 @@ Shader "Unlit/Light Mesh"
                 return -b - h;
             }
 
+            float GetSpotAngleAttenuation(float3 spotForward, float3 l, float spotScale, float spotOffset)
+            {
+                float cd = dot(-spotForward, l);
+                float attenuation = saturate(cd * spotScale + spotOffset);
+                return attenuation * attenuation;
+            }
+
+            void GetSpotScaleOffset(float outerAngle, float innerAnglePercent, out float spotScale, out float spotOffset)
+            {
+                float innerAngle = outerAngle / 100 * innerAnglePercent;
+                innerAngle = innerAngle / 360 * UNITY_PI;
+                outerAngle = outerAngle / 360 * UNITY_PI;
+                float cosOuter = cos(outerAngle);
+                spotScale = 1.0 / max(cos(innerAngle) - cosOuter, 1e-4);
+                spotOffset = -cosOuter * spotScale;
+            }
+
             struct FragOutput
             {
                 float4 color : SV_Target;
@@ -74,13 +93,15 @@ Shader "Unlit/Light Mesh"
 
             FragOutput frag(Varyings varyings)
             {
-                float3 spherePosition = UNITY_MATRIX_M._m03_m13_m23;
+                float3 lightPosition = UNITY_MATRIX_M._m03_m13_m23;
 
                 float objectScale = float3(
                     length(UNITY_MATRIX_M._m00_m10_m20),
                     length(UNITY_MATRIX_M._m01_m11_m21),
                     length(UNITY_MATRIX_M._m02_m12_m22)
                 );
+
+                float3 objectForward = -normalize(UNITY_MATRIX_M._m02_m12_m22);
 
                 float3 ro = CameraPositionWS();
                 float3 rd = -normalize(ro - varyings.positionWS);
@@ -89,13 +110,27 @@ Shader "Unlit/Light Mesh"
 
                 if (_LightType == 2)
                 {
-                    float3 objectForward = -normalize(UNITY_MATRIX_M._m02_m12_m22);
                     float dist = _ProjectionParams.z;
-                    spherePosition = CameraPositionWS() + objectForward * dist;
+                    lightPosition = CameraPositionWS() + objectForward * dist;
                     radius = dist * tan(radians(_LightRadius * 0.5));
                 }
 
-                float t = SphereIntersect(ro, rd, float4(spherePosition, radius));
+                float t = SphereIntersect(ro, rd, float4(lightPosition, radius));
+                float3 positionWS = ro + rd * t;
+
+                if (_LightType == 1)
+                {
+                    float spotScale;
+                    float spotOffset;
+                    GetSpotScaleOffset(_LightSpotAngle, 100, spotScale, spotOffset);
+                    float3 l = normalize(positionWS - ro);
+                    float spotAttenuation = GetSpotAngleAttenuation(-objectForward, l, spotScale, spotOffset);
+
+                    if (spotAttenuation <= 0)
+                    {
+                        t = -1.0;
+                    }
+                }
 
                 if (t <= -1.0)
                 {
@@ -105,7 +140,6 @@ Shader "Unlit/Light Mesh"
                 float4 color = 1.0;
                 color.rgb = _LightColor.rgb * _LightIntensity * 3.14159;
 
-                float3 positionWS = ro + rd * t;
 
                 float4 positionCS = mul(UNITY_MATRIX_VP, float4(positionWS, 1.0));
                 float ndcDepth = positionCS.z / positionCS.w;
