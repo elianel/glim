@@ -285,6 +285,7 @@ namespace stilb
         static void CreateLightVolumeTextures(BakeContext ctx, string directory)
         {
             var lvs = ctx.probeVolumes;
+            var vrclv = ctx.scene.GetRootGameObjects().SelectMany(x => x.GetComponentsInChildren<VRCLightVolumes.LightVolume>(false)).ToArray();
 
             for (int volumeIndex = 0; volumeIndex < lvs.Count; volumeIndex++)
             {
@@ -336,7 +337,20 @@ namespace stilb
                 AssetDatabase.CreateAsset(tex0, Path.Combine(directory, $"LightProbeVolume_{volumeIndex}-0.asset"));
                 AssetDatabase.CreateAsset(tex1, Path.Combine(directory, $"LightProbeVolume_{volumeIndex}-1.asset"));
                 AssetDatabase.CreateAsset(tex2, Path.Combine(directory, $"LightProbeVolume_{volumeIndex}-2.asset"));
+
+                var lv = vrclv[volumeIndex];
+                lv.Texture0 = tex0;
+                lv.Texture1 = tex1;
+                lv.Texture2 = tex2;
+                EditorUtility.SetDirty(lv);
             }
+
+            var lvSetup = ctx.scene.GetRootGameObjects().SelectMany(x => x.GetComponentsInChildren<VRCLightVolumes.LightVolumeSetup>(false)).FirstOrDefault();
+            if (lvSetup)
+            {
+                lvSetup.GenerateAtlas();
+            }
+
         }
 #endif
 
