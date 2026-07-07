@@ -99,7 +99,10 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
 
     Surface surface = Surface::Get(primitiveID, bary);
 
-    float3 positionWS = RayOffset(surface.P, surface.Ng);
+    // float3 positionWS = AdjustSamplePosition(surface, primitiveID, bary);
+    float3 positionWS = surface.P;
+
+    positionWS = RayOffset(positionWS, surface.Ng);
     float packed = PackNormalOctahedron(surface.N);
 
     VisibilityBuffer[coords] = float4(positionWS, packed);

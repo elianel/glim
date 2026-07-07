@@ -116,6 +116,7 @@ struct PushConstants
     }
 
     float4 previous = LightmapDiffuse[coords];
+    color.a = 1.0;
     AccumulateColor(previous, sampleIndex, color);
     LightmapDiffuse[coords] = previous;
 }

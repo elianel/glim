@@ -1199,7 +1199,7 @@ fn render_lightmaps(app: &mut Stilb) {
 
         if settings.dilate {
             let start_time = std::time::Instant::now();
-            let backface_threshold = 0.9;
+            let backface_threshold = 0.0;
 
             inpaint(pixels, width, height, backface_threshold, 32);
 
