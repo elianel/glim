@@ -1,10 +1,7 @@
 # Todo
 
 ## Priority
-- [ ] Some negatively scaled exported objects have flipped normals
 - [ ] Include OIDN dlls
-- [ ] Adjust sample positions before baking
-- [x] Light Volumes
 
 ## Features
 - [x] UV Packing
@@ -78,6 +75,9 @@
 - [x] Export light probe positions and accumulate SH
 - [x] Set all the globals in the unity meta pass
 - [x] OIDN2 bindings and apply denoise
+- [x] Adjust sample positions before baking
+- [x] Light Volumes
+- [x] Some negatively scaled exported objects have flipped normals
 
 ## Readme
 

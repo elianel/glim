@@ -553,26 +553,25 @@ namespace stilb
 
 
                 transform.TransformPoints(vertices);
-                transform.TransformDirections(normals);
-
-                // todo this still isnt always correct
-                bool isNegativeScale = (transform.lossyScale.x * transform.lossyScale.y * transform.lossyScale.z) < 0;
 
                 // todo move to rust
+                Matrix4x4 normalMatrix = transform.localToWorldMatrix.inverse.transpose;
 
+                for (int j = 0; j < normals.Length; j++)
+                {
+                    normals[j] = normalMatrix.MultiplyVector(normals[j]).normalized;
+                }
+
+                bool isNegativeScale = transform.localToWorldMatrix.determinant < 0.0f;
                 if (isNegativeScale)
                 {
-                    for (int j = 0; j < normals.Length; j++)
-                    {
-                        normals[j] = -normals[j];
-                    }
+
                     for (int j = 0; j < triangles.Length; j += 3)
                     {
-                        int temp = triangles[j];
-                        triangles[j] = triangles[j + 1];
-                        triangles[j + 1] = temp;
+                        (triangles[j + 1], triangles[j]) = (triangles[j], triangles[j + 1]);
                     }
                 }
+
 
                 Vector4 scaleOffset = renderers[i].lightmapScaleOffset;
                 Vector2 scale = new(scaleOffset.x, scaleOffset.y);
