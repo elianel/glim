@@ -78,7 +78,3 @@
 - [x] Adjust sample positions before baking
 - [x] Light Volumes
 - [x] Some negatively scaled exported objects have flipped normals
-
-## Readme
-
-- Supports only linear color space
