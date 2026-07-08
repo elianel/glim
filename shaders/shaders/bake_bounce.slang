@@ -74,9 +74,7 @@ struct PushConstants
         }
 
         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-
-        // todo why flipped
-        float3 previousDiffuse = SamplePreviousDiffuse(float2(surface.uv.x, 1.0 - surface.uv.y), surface.lightmapGroup).rgb;
+        float3 previousDiffuse = SamplePreviousDiffuse(surface.uv, surface.lightmapGroup).rgb;
         color.rgb += previousDiffuse * bounceAlbedo;
     }
 

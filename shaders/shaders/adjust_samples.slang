@@ -8,7 +8,7 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 positionWS = smoothP ? surface.smoothP : surface.P;
     positionWS = RayOffset(positionWS, surface.Ng);
 
-    uint2 resolution;
+    float2 resolution;
     VisibilityBuffer.GetDimensions(resolution.x, resolution.y);
 
     uint i0 = Indices[primitiveID * 3 + 0];
@@ -18,9 +18,9 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 p0 = Vertices[i0].GetPosition();
     float3 p1 = Vertices[i1].GetPosition();
     float3 p2 = Vertices[i2].GetPosition();
-    float2 uv0 = Vertices[i0].GetUV();
-    float2 uv1 = Vertices[i1].GetUV();
-    float2 uv2 = Vertices[i2].GetUV();
+    float2 uv0 = Vertices[i0].GetUV() / resolution;
+    float2 uv1 = Vertices[i1].GetUV() / resolution;
+    float2 uv2 = Vertices[i2].GetUV() / resolution;
 
     // some ideas from https://ndotl.wordpress.com/2018/08/29/baking-artifact-free-lightmaps/
     float3 edge1 = p1 - p0;
@@ -34,7 +34,7 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 dPdU = (edge1 * duv2.y - edge2 * duv1.y) * invDet;
     float3 dPdV = (edge2 * duv1.x - edge1 * duv2.x) * invDet;
 
-    float2 texelSizeUV = 1.0 / float2(resolution);
+    float2 texelSizeUV = 1.0 / resolution;
     float3 worldTexelU = dPdU * texelSizeUV.x;
     float3 worldTexelV = dPdV * texelSizeUV.y;
 

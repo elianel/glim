@@ -69,7 +69,8 @@ static const float2 kJitterOffsets[25] = {
 {
     float2 barys[3] = {float2(0, 0), float2(1, 0), float2(0, 1)};
 
-    float2 texelSize = 1.0 / float2(Push.width, Push.height);
+    float2 resolution = float2(Push.width, Push.height);
+    float2 texelSize = 1.0 / resolution;
 
     float2 jitter = kJitterOffsets[input[0].instanceID] * (texelSize * 0.5);
 
@@ -88,7 +89,7 @@ static const float2 kJitterOffsets[25] = {
             continue;
         }
 
-        float2 uv = v.GetUV() + jitter;
+        float2 uv = (v.GetUV() / resolution) + jitter;
 
         Varyings outV;
         outV.positionCS = float4(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, 0.0, 1.0);

@@ -107,7 +107,7 @@ struct Surface
     float3 smoothP;
     float3 Ng;
     float3 N;
-    float2 uv;
+    float2 uv; // UVs already scaled by lightmap group resolution
 
     uint lightmapGroup;
     bool backfaceGI;

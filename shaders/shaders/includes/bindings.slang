@@ -59,36 +59,27 @@ Texture2D<float4> PreviousDiffuse[];
 
 float4 SampleAlbedo(float2 uv, uint lightmapGroup)
 {
-    Texture2D tex = Albedo[NonUniformResourceIndex(lightmapGroup)];
-
-    uint2 resolution;
-    tex.GetDimensions(resolution.x, resolution.y);
-
-    uint2 coords = uint2(uv * resolution);
-
-    return tex[coords];
+    uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
+    Texture2D tex = Albedo[index];
+    return tex[(uint2)uv];
 }
 
 float4 SampleEmission(float2 uv, uint lightmapGroup)
 {
-    Texture2D tex = Emission[NonUniformResourceIndex(lightmapGroup)];
-
-    uint2 resolution;
-    tex.GetDimensions(resolution.x, resolution.y);
-
-    uint2 coords = uint2(uv * resolution);
-
-    return tex[coords];
+    uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
+    Texture2D tex = Emission[index];
+    return tex[(uint2)uv];
 }
 
 float4 SamplePreviousDiffuse(float2 uv, uint lightmapGroup)
 {
-    Texture2D tex = PreviousDiffuse[NonUniformResourceIndex(lightmapGroup)];
+    uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
 
-    uint2 resolution;
+    Texture2D tex = PreviousDiffuse[index];
+
+    // todo for some reason this is flipped
+    float2 resolution;
     tex.GetDimensions(resolution.x, resolution.y);
-
-    uint2 coords = uint2(uv * resolution);
-
-    return tex[coords];
+    uv.y = resolution.y - uv.y;
+    return tex[(uint2)uv];
 }

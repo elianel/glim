@@ -567,7 +567,12 @@ fn initialize_render(app: &mut Stilb) {
         );
     }
 
-    app.gpu_mesh = GpuMesh::new(&app.vk, &app.opaque_mesh, &app.transparent_mesh);
+    app.gpu_mesh = GpuMesh::new(
+        &app.vk,
+        &app.opaque_mesh,
+        &app.transparent_mesh,
+        &app.groups,
+    );
     let message = format!(
         "Created scene with Vertices: {} Triangles: {}",
         app.opaque_mesh.vertices.len() + app.transparent_mesh.vertices.len(),
@@ -1246,7 +1251,7 @@ fn render_lightmaps(app: &mut Stilb) {
         (app.config.lightmap_read_callback)(readback_data);
 
         // todo emissions and previous diffuse can be merged here for light probes
-        // but one is flipped for some reson
+        // but one is flipped for some reason
         previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
     }
 

@@ -1,7 +1,7 @@
 use ash::vk::{self, Handle};
 
 use crate::{
-    CoordinateSystem,
+    CoordinateSystem, LightmapGroup,
     buffer::Buffer,
     math::*,
     seams::{Seam, find_seams},
@@ -198,7 +198,12 @@ pub struct GpuMesh {
 }
 
 impl GpuMesh {
-    pub fn new(vk: &VulkanContext, opaque_mesh: &Mesh, transparent_mesh: &Mesh) -> Self {
+    pub fn new(
+        vk: &VulkanContext,
+        opaque_mesh: &Mesh,
+        transparent_mesh: &Mesh,
+        lightmap_groups: &[LightmapGroup],
+    ) -> Self {
         let mut usage = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS;
@@ -212,6 +217,17 @@ impl GpuMesh {
 
         let mut merged_mesh = opaque_mesh.clone();
         merged_mesh.merge_mesh(transparent_mesh);
+
+        let mut group_resolutions = vec![Vector2::ZERO; lightmap_groups.len()];
+        for group in lightmap_groups {
+            group_resolutions[group.index as usize] =
+                Vector2::new(group.settings.width as f32, group.settings.height as f32);
+        }
+
+        for v in &mut merged_mesh.vertices {
+            let group = v.flags & 0xFFFF;
+            v.uv *= group_resolutions[group as usize];
+        }
 
         // vertices
         let vertex_buffer = Buffer::new(
