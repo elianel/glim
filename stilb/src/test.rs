@@ -254,9 +254,9 @@ mod tests {
         let settings = LightmapSettings {
             width: w,
             height: h,
-            denoise: true,
-            dilate: true,
-            fix_seams: true,
+            denoise: false,
+            dilate: false,
+            fix_seams: false,
         };
         app_add_lightmap_group(
             app,
@@ -411,7 +411,10 @@ mod tests {
     pub extern "C" fn test_save_callback(data: LightmapReadbackData) {
         let pixels = unsafe { std::slice::from_raw_parts(data.pixels, data.pixels_count as usize) };
 
-        let file_name = format!("../temp/diffuse_lightmap{}.exr", data.group_index);
+        let file_name = format!(
+            "../temp/diffuse_lightmap{}_{}.exr",
+            data.group_index, data.ty
+        );
 
         println!("saving lightmap {}", file_name);
 

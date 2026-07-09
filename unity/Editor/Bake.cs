@@ -16,7 +16,7 @@ namespace stilb
         class ReadbackResult
         {
             public Bindings.LightmapReadbackData data;
-            public Color[] pixelsDiffuseCopy;
+            public Color[] pixelsCopy;
         }
 
         static List<ReadbackResult> _bakeResults = new();
@@ -35,7 +35,7 @@ namespace stilb
             _bakeResults.Add(new ReadbackResult()
             {
                 data = data,
-                pixelsDiffuseCopy = pixels,
+                pixelsCopy = pixels,
             });
         }
 
@@ -85,6 +85,16 @@ namespace stilb
                 Debug.Log($"Bake Complete in {now - _bakeStartTime}");
 
                 List<LightmapData> lightmapDatas = new();
+                for (int i = 0; i < _context.groups.Count; i++)
+                {
+                    var lmData = new LightmapData
+                    {
+                        lightmapColor = null,
+                        lightmapDir = null,
+                        shadowMask = null
+                    };
+                    lightmapDatas.Add(lmData);
+                }
 
                 var scenePath = _context.scene.path;
                 string sceneName = _context.scene.name;
@@ -95,16 +105,21 @@ namespace stilb
                     AssetDatabase.CreateFolder(Path.GetDirectoryName(scenePath), sceneName);
                 }
 
-
+                bool hasDirectional = false;
                 foreach (var result in _bakeResults)
                 {
                     var data = result.data;
+                    bool directional = data.ty == 1;
+                    hasDirectional |= directional;
+
                     var groupAsset = _context.groups[(int)data.group_index].groupAsset;
 
-                    var diffuseTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, false, true);
-                    diffuseTex.wrapMode = TextureWrapMode.Clamp;
-                    diffuseTex.SetPixels(result.pixelsDiffuseCopy);
-                    var fileName = $"Lightmap-{data.group_index}_comp_light";
+                    var diffuseTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, false, true)
+                    {
+                        wrapMode = TextureWrapMode.Clamp
+                    };
+                    diffuseTex.SetPixels(result.pixelsCopy);
+                    var fileName = directional ? $"Lightmap-{data.group_index}_comp_dir" : $"Lightmap-{data.group_index}_comp_light";
                     diffuseTex.name = fileName;
 
                     var assets = new UnityEngine.Object[] { diffuseTex };
@@ -131,13 +146,15 @@ namespace stilb
 
                     AssetDatabase.ImportAsset(path);
                     var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-                    var lmData = new LightmapData
+
+                    if (directional)
                     {
-                        lightmapColor = loadedAsset,
-                        lightmapDir = null,
-                        shadowMask = null
-                    };
-                    lightmapDatas.Add(lmData);
+                        lightmapDatas[(int)result.data.group_index].lightmapDir = loadedAsset;
+                    }
+                    else
+                    {
+                        lightmapDatas[(int)result.data.group_index].lightmapColor = loadedAsset;
+                    }
                 }
 
                 // EditorUtility.SetDirty(_context.baker);
@@ -161,8 +178,8 @@ namespace stilb
                 }
 
 
-                lda.FindProperty("m_LightmapsMode").intValue = (int)LightmapsMode.NonDirectional;
-
+                lda.FindProperty("m_LightmapsMode").intValue = hasDirectional ?
+                    (int)LightmapsMode.CombinedDirectional : (int)LightmapsMode.NonDirectional;
 
                 // apply light probes
                 var lightProbesRef = lda.FindProperty("m_LightProbes").objectReferenceValue;

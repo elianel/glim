@@ -104,6 +104,16 @@ impl Vector3 {
             CoordinateSystem::Unity => self.z = -self.z,
         }
     }
+
+    pub const GRAYSCALE: Self = Self {
+        x: 0.2126,
+        y: 0.7152,
+        z: 0.0722,
+    };
+
+    pub fn luminance(&self) -> f32 {
+        self.dot(Vector3::GRAYSCALE)
+    }
 }
 
 impl Add for Vector3 {

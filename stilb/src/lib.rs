@@ -12,6 +12,7 @@ use crate::buffer::Buffer;
 use crate::compute_shader::*;
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
+use crate::math::Vector2;
 use crate::seams::{Seam, fix_seams, inpaint};
 use crate::sh::SHProbeL2;
 use crate::{
@@ -848,6 +849,27 @@ fn render_lightmaps(app: &mut Stilb) {
 
     app.adjust_samples_shader = load_adjust_samples_shader(&app.vk, &app.constants);
 
+    let mut max_resolution = (1, 1);
+    for group in &app.groups {
+        max_resolution.0 = u32::max(max_resolution.0, group.settings.width);
+        max_resolution.1 = u32::max(max_resolution.1, group.settings.height);
+    }
+    let dominant_direction_pixels_size =
+        std::mem::size_of::<f32>() as u32 * max_resolution.0 * max_resolution.1 * 4;
+
+    let usage = vk::BufferUsageFlags::TRANSFER_DST
+        | vk::BufferUsageFlags::STORAGE_BUFFER
+        | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+        | vk::BufferUsageFlags::TRANSFER_SRC;
+
+    let dominant_direction_buffer = Buffer::empty(
+        &app.vk,
+        "Dominant Direction".to_owned(),
+        dominant_direction_pixels_size as vk::DeviceSize,
+        usage,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    );
+
     let mut bake_direct_shader = load_bake_direct_shader(&app.vk, &app.constants);
 
     let lights_count = app.cpu_lights.len() as u32;
@@ -923,6 +945,7 @@ fn render_lightmaps(app: &mut Stilb) {
             app.gpu_mesh.vertex_buffer.buffer,
             app.gpu_lights.buffer,
             app.emissive_triangles_buffer.buffer,
+            dominant_direction_buffer.buffer,
         );
 
         let cmd = app.vk.command_buffer;
@@ -1185,6 +1208,12 @@ fn render_lightmaps(app: &mut Stilb) {
         let group = &mut app.groups[i];
         let group_index = group.index;
         let mut pixels = &mut group.lightmap_diffuse_final;
+        let mut direction_pixels = vec![0.0f32; pixels.len()];
+        app.vk
+            .download_buffer(dominant_direction_buffer.buffer, &mut direction_pixels);
+
+        encode_directional_lightmap(pixels, &mut direction_pixels);
+
         let settings = group.settings.clone();
 
         let width = group.settings.width;
@@ -1244,6 +1273,17 @@ fn render_lightmaps(app: &mut Stilb) {
             ty: 0,
             pixels: pixels.as_ptr(),
             pixels_count: pixels.len() as u32,
+            width,
+            height,
+        };
+
+        (app.config.lightmap_read_callback)(readback_data);
+
+        let readback_data = LightmapReadbackData {
+            group_index,
+            ty: 1,
+            pixels: direction_pixels.as_ptr(),
+            pixels_count: direction_pixels.len() as u32,
             width,
             height,
         };
@@ -1367,6 +1407,84 @@ fn render_lightmaps(app: &mut Stilb) {
 
     for tex in &mut previous_diffuses {
         tex.destroy(&app.vk);
+    }
+}
+
+fn octahedron_wrap(v: Vector2) -> Vector2 {
+    let sign_x = if v.x >= 0.0 { 1.0 } else { -1.0 };
+    let sign_y = if v.y >= 0.0 { 1.0 } else { -1.0 };
+
+    Vector2 {
+        x: (1.0 - v.y.abs()) * sign_x,
+        y: (1.0 - v.x.abs()) * sign_y,
+    }
+}
+
+fn decode_normal_octahedron(e: Vector2) -> Vector3 {
+    let mut v = Vector3 {
+        x: e.x,
+        y: e.y,
+        z: 1.0 - e.x.abs() - e.y.abs(),
+    };
+
+    if v.z < 0.0 {
+        let xy = octahedron_wrap(Vector2 { x: v.x, y: v.y });
+        v.x = xy.x;
+        v.y = xy.y;
+    }
+
+    v.normalize()
+}
+
+fn unpack_normal_octahedron(packed: f32) -> Vector3 {
+    let bits = packed.to_bits();
+
+    let x = bits >> 16;
+    let y = bits & 0xFFFF;
+
+    let mut oct = Vector2 {
+        x: (x as f32) / 65535.0,
+        y: (y as f32) / 65535.0,
+    };
+
+    oct.x = oct.x * 2.0 - 1.0;
+    oct.y = oct.y * 2.0 - 1.0;
+
+    decode_normal_octahedron(oct)
+}
+
+fn encode_directional_lightmap(diffuse: &[f32], dir: &mut [f32]) {
+    for i in 0..(diffuse.len() / 4) {
+        let index = i * 4;
+        let diffuse_r = diffuse[index + 0];
+        let diffuse_g = diffuse[index + 1];
+        let diffuse_b = diffuse[index + 2];
+        let diffuse_a = diffuse[index + 3];
+
+        if diffuse_a == 0.0 {
+            continue;
+        }
+
+        let diffuse = Vector3::new(diffuse_r, diffuse_g, diffuse_b);
+        let luminance = diffuse.luminance();
+
+        let dir_x = dir[index + 0];
+        let dir_y = dir[index + 1];
+        let dir_z = dir[index + 2];
+        let dir_w = dir[index + 3];
+
+        let normal = unpack_normal_octahedron(dir_w);
+        let v = Vector3::new(dir_x, dir_y, dir_z);
+
+        let normalized_dir = (v / luminance).normalize();
+
+        let directionality = (v.length() / luminance).clamp(0.0, 1.0);
+
+        dir[index + 0] = normalized_dir.x * 0.5 + 0.5;
+        dir[index + 1] = normalized_dir.y * 0.5 + 0.5;
+        dir[index + 2] = normalized_dir.z * 0.5 + 0.5;
+        // dir[index + 3] = normal.dot(Vector3::ZERO - normalized_dir).clamp(0.0, 1.0) * 0.5 + 0.5;
+        dir[index + 3] = directionality;
     }
 }
 

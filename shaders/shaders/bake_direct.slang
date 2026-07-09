@@ -52,23 +52,26 @@ struct PushConstants
 
     float4 color = float4(0.0, 0.0, 0.0, 1.0);
     float3 throughput = float3(1.0);
+    float4 dominantDirection = 0.0;
 
     for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
     {
         float3 L;
-        color.rgb += ShadeLightDirect(Lights[lightIndex], positionWS, normalWS, xiLight, throughput, L);
+        float3 current = ShadeLightDirect(Lights[lightIndex], positionWS, normalWS, xiLight, throughput, L);
+        color.rgb += current;
+        dominantDirection.xyz += L * Luminance(current);
     }
 
     float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
 
-    Ray bounceRay;
-    bounceRay.P = positionWS;
-    bounceRay.D = RandomDirectionInHemisphere(normalWS, xiBounce);
-    bounceRay.tMin = 0;
-    bounceRay.tMax = RAY_MAX;
+    Ray ray;
+    ray.P = positionWS;
+    ray.D = RandomDirectionInHemisphere(normalWS, xiBounce);
+    ray.tMin = 0;
+    ray.tMax = RAY_MAX;
 
     Hit bounceHit;
-    if (TraceRay(bounceRay, bounceHit))
+    if (TraceRay(ray, bounceHit))
     {
         Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
 
@@ -81,11 +84,24 @@ struct PushConstants
         }
 
         float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
+        float3 current = bounceEmission * color.a;
         color.rgb += bounceEmission * color.a;
+        dominantDirection.xyz += -ray.D * Luminance(current);
     }
 
     float4 previous = LightmapDiffuse[coords];
     color.a = 1.0;
     AccumulateColor(previous, sampleIndex, color);
     LightmapDiffuse[coords] = previous;
+
+    uint index = (coords.x + coords.y * resolution.x) * 4;
+    dominantDirection.z = -dominantDirection.z; // unity coords
+    DominantDirection[index + 0] += dominantDirection.x;
+    DominantDirection[index + 1] += dominantDirection.y;
+    DominantDirection[index + 2] += dominantDirection.z;
+    // todo temp
+    if (sampleIndex == sampleCount - 1)
+    {
+        DominantDirection[index + 3] = PackNormalOctahedron(float3(normalWS.xy, -normalWS.z));
+    }
 }

@@ -425,6 +425,7 @@ pub fn load_bake_direct_shader(
     bind_vertices(&mut bindings);
     bind_lights(&mut bindings);
     bind_emissive_triangles(&mut bindings);
+    bind_dominant_direction(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
     let data_bytes = as_bytes(constants);
@@ -896,6 +897,7 @@ pub fn update_bake_direct_shader(
     vertices: vk::Buffer,
     lights: vk::Buffer,
     emissive_triangles: vk::Buffer,
+    dominant_direction: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -1047,6 +1049,21 @@ pub fn update_bake_direct_shader(
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
         dst_binding: 12,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // DominantDirection
+    let info = [vk::DescriptorBufferInfo {
+        buffer: dominant_direction,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 14,
         descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
         ..Default::default()
     };
