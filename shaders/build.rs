@@ -73,12 +73,6 @@ fn main() {
     });
 
     shaders.push(Shader {
-        ty: ShaderType::Geometry,
-        src: "init_from_bake.slang".into(),
-        dst: "init_from_bake_geometry.spv".into(),
-    });
-
-    shaders.push(Shader {
         ty: ShaderType::Fragment,
         src: "init_from_bake.slang".into(),
         dst: "init_from_bake_fragment.spv".into(),

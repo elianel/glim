@@ -1,5 +1,6 @@
 use ash::vk::{self, Handle};
 use std::io::{self, Write};
+use std::mem;
 use std::{ptr, time::Duration};
 
 use glfw_sys::{
@@ -212,16 +213,12 @@ fn render_visibility_from_lightmap(app: &mut Stilb, width: u32, height: u32, gro
         &shader,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
-        &albedos,
-        app.texture_sampler,
     );
     update_visibility_shader(
         vk,
         &shader_convervative,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
-        &albedos,
-        app.texture_sampler,
     );
 
     let clear_values = [vk::ClearValue {
@@ -273,9 +270,7 @@ fn render_visibility_from_lightmap(app: &mut Stilb, width: u32, height: u32, gro
         vk.device.cmd_push_constants(
             cmd,
             shader_convervative.pipeline_layout,
-            vk::ShaderStageFlags::GEOMETRY
-                | vk::ShaderStageFlags::FRAGMENT
-                | vk::ShaderStageFlags::VERTEX,
+            vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX,
             0,
             &constants_bytes,
         );
@@ -310,9 +305,7 @@ fn render_visibility_from_lightmap(app: &mut Stilb, width: u32, height: u32, gro
         vk.device.cmd_push_constants(
             cmd,
             shader.pipeline_layout,
-            vk::ShaderStageFlags::GEOMETRY
-                | vk::ShaderStageFlags::FRAGMENT
-                | vk::ShaderStageFlags::VERTEX,
+            vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX,
             0,
             &constants_bytes,
         );
@@ -593,7 +586,7 @@ fn initialize_render(app: &mut Stilb) {
     if app.config.is_preview {
         render_preview(app);
     } else {
-        render_lightmaps(app);
+        render_lightmaps3(app);
     }
     unsafe {
         app.vk.device.device_wait_idle().unwrap();
@@ -821,678 +814,830 @@ fn render_preview(app: &mut Stilb) {
     }
 }
 
-fn render_lightmaps(app: &mut Stilb) {
-    let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
-    let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
-
-    let any_denoise = app.groups.iter().any(|x| x.settings.denoise);
-    let log = app.config.log_callback;
-
-    let oidn = if any_denoise {
-        let oidn = Oidn::load();
-        if oidn.is_err() {
-            let err = oidn.err();
-            match err {
-                Some(err) => {
-                    let message = "Failed to load Open Image Denoise";
-                    (log)(LogMessage::message(&message));
-                    (log)(LogMessage::message(&err.to_string()))
-                }
-                None => {}
-            };
-            None
-        } else {
-            Some(oidn.unwrap())
-        }
-    } else {
-        None
-    };
-
-    app.adjust_samples_shader = load_adjust_samples_shader(&app.vk, &app.constants);
-
+fn render_lightmaps3(app: &mut Stilb) {
     let mut max_resolution = (1, 1);
     for group in &app.groups {
         max_resolution.0 = u32::max(max_resolution.0, group.settings.width);
         max_resolution.1 = u32::max(max_resolution.1, group.settings.height);
     }
-    let dominant_direction_pixels_size =
-        std::mem::size_of::<f32>() as u32 * max_resolution.0 * max_resolution.1 * 4;
 
-    let usage = vk::BufferUsageFlags::TRANSFER_DST
-        | vk::BufferUsageFlags::STORAGE_BUFFER
-        | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
-        | vk::BufferUsageFlags::TRANSFER_SRC;
+    // let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
+    // let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
 
-    // todo diffuse should probably be switched to a buffer as well to not waste the alpha and for easier copy
+    let max_pixels_size =
+        (max_resolution.0 * max_resolution.1 * mem::size_of::<f32>() as u32) as vk::DeviceSize;
 
-    let dominant_direction_buffer = Buffer::empty(
+    let mut visibility_expanded = Texture2D::new(
         &app.vk,
-        "Dominant Direction".to_owned(),
-        dominant_direction_pixels_size as vk::DeviceSize,
-        usage,
-        vk::MemoryPropertyFlags::DEVICE_LOCAL,
-    );
-    let mut directional_pixels_temp =
-        vec![0.0f32; (max_resolution.0 * max_resolution.1 * 4) as usize];
-    let usage = vk::BufferUsageFlags::TRANSFER_DST;
-    let properties = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
-    let (staging_buffer, staging_memory, _) = app.vk.create_buffer(
-        dominant_direction_pixels_size as vk::DeviceSize,
-        usage,
-        properties,
+        max_resolution.0,
+        max_resolution.1,
+        vk::Format::R32G32B32A32_SFLOAT,
+        vk::ImageUsageFlags::STORAGE
+            | vk::ImageUsageFlags::TRANSFER_SRC
+            | vk::ImageUsageFlags::TRANSFER_DST
+            | vk::ImageUsageFlags::SAMPLED
+            | vk::ImageUsageFlags::COLOR_ATTACHMENT,
+        String::from("Visibility"),
     );
 
-    let mut bake_direct_shader = load_bake_direct_shader(&app.vk, &app.constants);
-
-    let lights_count = app.cpu_lights.len() as u32;
-
-    let mut previous_diffuses = Vec::new();
-
-    let bounce_count = app.config.bounce_count;
-
-    for i in 0..app.groups.len() {
-        let group = &app.groups[i];
-        let settings = group.settings.clone();
-
-        let diffuse = Texture2D::new(
-            &app.vk,
-            settings.width,
-            settings.height,
-            vk::Format::R32G32B32A32_SFLOAT,
-            vk::ImageUsageFlags::SAMPLED
-                | vk::ImageUsageFlags::TRANSFER_SRC
-                | vk::ImageUsageFlags::TRANSFER_DST,
-            String::from("Diffuse Copy"),
-        );
-
-        previous_diffuses.push(diffuse);
-    }
-
-    let log = app.config.log_callback;
-
-    let mut progress = 0.0;
-    let progress_max = app.groups.len() as u32 * app.config.direct_samples
-        + app.groups.len() as u32 * app.config.indirect_samples * app.config.bounce_count;
-
-    let progress_scale = 1.0 / progress_max as f32;
-
-    for i in 0..app.groups.len() {
-        let message = format!("Baking Direct (Group {}/{})", i + 1, app.groups.len());
-
-        let group = &app.groups[i];
-
-        let settings = group.settings.clone();
-
-        let width = group.settings.width;
-        let height = group.settings.height;
-
-        let mut push = BakeDirectPushConstants {
-            width,
-            height,
-            sample_index: 0,
-            max_samples: app.config.direct_samples,
-            lights_count,
-            pad0: 0,
-            pad1: 0,
-            pad2: 0,
-        };
-
-        update_render_target(app, &settings, group.index);
-
-        let visibility = &mut app.render_target.visibility;
-        let diffuse = &mut app.render_target.diffuse;
-
-        let shader = &bake_direct_shader;
-
-        update_bake_direct_shader(
-            &app.vk,
-            shader,
-            app.tlas.acceleration_structure(),
-            visibility.view(),
-            &albedos,
-            &emissions,
-            diffuse.view(),
-            app.texture_sampler,
-            app.gpu_mesh.index_buffer.buffer,
-            app.gpu_mesh.vertex_buffer.buffer,
-            app.gpu_lights.buffer,
-            app.emissive_triangles_buffer.buffer,
-            dominant_direction_buffer.buffer,
-        );
-
-        let cmd = app.vk.command_buffer;
-        let vk = &app.vk.device;
-
-        let groups_x = (width + 7) / 8;
-        let groups_y = (height + 7) / 8;
-
-        let begin_info = vk::CommandBufferBeginInfo {
-            flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-            ..Default::default()
-        };
-
-        loop {
-            (log)(LogMessage::progress(&message, progress * progress_scale));
-
-            unsafe {
-                vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
-                    .unwrap();
-
-                vk.begin_command_buffer(cmd, &begin_info).unwrap();
-
-                if diffuse.layout() != vk::ImageLayout::GENERAL {
-                    let barrier = diffuse.barrier(
-                        vk::ImageLayout::GENERAL,
-                        vk::AccessFlags::default(),
-                        vk::AccessFlags::SHADER_WRITE,
-                    );
-                    vk.cmd_pipeline_barrier(
-                        cmd,
-                        vk::PipelineStageFlags::TOP_OF_PIPE,
-                        vk::PipelineStageFlags::COMPUTE_SHADER,
-                        vk::DependencyFlags::empty(),
-                        &[],
-                        &[],
-                        &[barrier],
-                    );
-                }
-
-                vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
-
-                vk.cmd_bind_descriptor_sets(
-                    cmd,
-                    vk::PipelineBindPoint::COMPUTE,
-                    shader.pipeline_layout,
-                    0,
-                    &[shader.descriptor_set],
-                    &[],
-                );
-
-                let constants_bytes = as_bytes(&push);
-
-                vk.cmd_push_constants(
-                    cmd,
-                    shader.pipeline_layout,
-                    vk::ShaderStageFlags::COMPUTE,
-                    0,
-                    &constants_bytes,
-                );
-
-                vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
-
-                let cmds = [cmd];
-                let submit = vk::SubmitInfo::default().command_buffers(&cmds);
-
-                vk.end_command_buffer(cmd).unwrap();
-
-                vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
-                    .unwrap();
-
-                vk.queue_wait_idle(app.vk.compute_queue).unwrap()
-            };
-
-            push.sample_index += 1;
-
-            if push.sample_index >= push.max_samples {
-                break;
-            } else {
-                progress += 1.0;
-            }
-        }
-
-        if bounce_count > 0 {
-            copy_image(&app.vk, diffuse, &mut previous_diffuses[i]);
-        }
-
-        diffuse.read_pixels(
-            &app.vk,
-            &mut app.groups[i].lightmap_diffuse_final,
-            &app.staging_buffer,
-        );
-
-        app.groups[i].lightmap_directional = vec![0.0; app.groups[i].lightmap_diffuse_final.len()];
-
-        let regions = vk::BufferCopy {
-            src_offset: 0,
-            dst_offset: 0,
-            size: (app.groups[i].lightmap_directional.len() * std::mem::size_of::<f32>())
-                as vk::DeviceSize,
-        };
-        app.vk.download_buffer_with_staging(
-            dominant_direction_buffer.buffer,
-            &mut directional_pixels_temp,
-            staging_buffer,
-            staging_memory,
-            regions,
-        );
-        let dir = &mut app.groups[i].lightmap_directional;
-        for i in 0..dir.len() {
-            dir[i] = directional_pixels_temp[i];
-        }
-    }
-
-    bake_direct_shader.destroy(&app.vk);
-
-    let mut bake_bounce_shader = load_bake_bounce_shader(&app.vk, &app.constants);
-
-    for bounce_index in 0..bounce_count {
-        let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
-
-        for i in 0..app.groups.len() {
-            let message = format!(
-                "Baking Bounce {}/{} (Group {}/{})",
-                bounce_index + 1,
-                bounce_count,
-                i + 1,
-                app.groups.len(),
-            );
-
-            let group = &app.groups[i];
-
-            let settings = group.settings.clone();
-
-            let width = group.settings.width;
-            let height = group.settings.height;
-
-            let mut push = BakeBouncePushConstants {
-                width,
-                height,
-                sample_index: 0,
-                max_samples: app.config.indirect_samples,
-                bounce_index: bounce_index as u32,
-                pad0: 0,
-                pad1: 0,
-                pad2: 0,
-            };
-
-            update_render_target(app, &settings, group.index);
-
-            let visibility = &mut app.render_target.visibility;
-            let diffuse = &mut app.render_target.diffuse;
-
-            let shader = &bake_bounce_shader;
-
-            update_bake_bounce_shader(
-                &app.vk,
-                shader,
-                app.tlas.acceleration_structure(),
-                visibility.view(),
-                &albedos,
-                &previous,
-                diffuse.view(),
-                app.texture_sampler,
-                app.gpu_mesh.index_buffer.buffer,
-                app.gpu_mesh.vertex_buffer.buffer,
-                dominant_direction_buffer.buffer,
-            );
-
-            let cmd = app.vk.command_buffer;
-            let vk = &app.vk.device;
-
-            let groups_x = (width + 7) / 8;
-            let groups_y = (height + 7) / 8;
-
-            let begin_info = vk::CommandBufferBeginInfo {
-                flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-                ..Default::default()
-            };
-
-            loop {
-                (log)(LogMessage::progress(&message, progress * progress_scale));
-
-                unsafe {
-                    vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
-                        .unwrap();
-
-                    vk.begin_command_buffer(cmd, &begin_info).unwrap();
-
-                    if diffuse.layout() != vk::ImageLayout::GENERAL {
-                        let barrier = diffuse.barrier(
-                            vk::ImageLayout::GENERAL,
-                            vk::AccessFlags::default(),
-                            vk::AccessFlags::SHADER_WRITE,
-                        );
-                        vk.cmd_pipeline_barrier(
-                            cmd,
-                            vk::PipelineStageFlags::TOP_OF_PIPE,
-                            vk::PipelineStageFlags::COMPUTE_SHADER,
-                            vk::DependencyFlags::empty(),
-                            &[],
-                            &[],
-                            &[barrier],
-                        );
-                    }
-
-                    vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
-
-                    vk.cmd_bind_descriptor_sets(
-                        cmd,
-                        vk::PipelineBindPoint::COMPUTE,
-                        shader.pipeline_layout,
-                        0,
-                        &[shader.descriptor_set],
-                        &[],
-                    );
-
-                    let constants_bytes = as_bytes(&push);
-
-                    vk.cmd_push_constants(
-                        cmd,
-                        shader.pipeline_layout,
-                        vk::ShaderStageFlags::COMPUTE,
-                        0,
-                        &constants_bytes,
-                    );
-
-                    vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
-
-                    let cmds = [cmd];
-                    let submit = vk::SubmitInfo::default().command_buffers(&cmds);
-
-                    vk.end_command_buffer(cmd).unwrap();
-
-                    vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
-                        .unwrap();
-
-                    vk.queue_wait_idle(app.vk.compute_queue).unwrap()
-                };
-
-                push.sample_index += 1;
-
-                if push.sample_index >= push.max_samples {
-                    break;
-                } else {
-                    progress += 1.0;
-                }
-            }
-
-            unsafe { app.vk.device.queue_wait_idle(app.vk.compute_queue).unwrap() }
-
-            diffuse.read_pixels(
-                &app.vk,
-                &mut app.groups[i].lightmap_diffuse_previous_bounce,
-                &app.staging_buffer,
-            );
-
-            let group = &mut app.groups[i];
-            let src = &group.lightmap_diffuse_previous_bounce;
-            let dst = &mut group.lightmap_diffuse_final;
-
-            for (d, s) in dst.iter_mut().zip(src) {
-                *d += s;
-            }
-
-            let regions = vk::BufferCopy {
-                src_offset: 0,
-                dst_offset: 0,
-                size: (group.lightmap_directional.len() * std::mem::size_of::<f32>())
-                    as vk::DeviceSize,
-            };
-            app.vk.download_buffer_with_staging(
-                dominant_direction_buffer.buffer,
-                &mut directional_pixels_temp,
-                staging_buffer,
-                staging_memory,
-                regions,
-            );
-            let src = &directional_pixels_temp;
-            let dst = &mut group.lightmap_directional;
-
-            // .w stores normal so skip that
-            for i in 0..(group.settings.width * group.settings.height) as usize {
-                let i = i * 4;
-
-                let x = i + 0;
-                let y = i + 1;
-                let z = i + 2;
-
-                dst[x] += src[x];
-                dst[y] += src[y];
-                dst[z] += src[z];
-            }
-        }
-
-        let last_bounce = bounce_index == bounce_count - 1;
-
-        if !last_bounce {
-            for i in 0..app.groups.len() {
-                let group = &mut app.groups[i];
-                let pixels = &group.lightmap_diffuse_previous_bounce;
-                previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
-            }
-        }
-    }
-
-    bake_bounce_shader.destroy(&app.vk);
-    app.adjust_samples_shader.destroy(&app.vk);
-
-    unsafe {
-        app.vk.device.destroy_buffer(staging_buffer, None);
-        app.vk.device.free_memory(staging_memory, None);
+    let mut visibility_convervative =
+        load_visibility_shader(&mut app.vk, &visibility_expanded, true, &app.constants);
+
+    update_visibility_shader(
+        &app.vk,
+        &visibility_convervative,
+        app.gpu_mesh.index_buffer.buffer,
+        app.gpu_mesh.vertex_buffer.buffer,
+    );
+
+    let clear_values = [vk::ClearValue {
+        color: vk::ClearColorValue {
+            float32: [0.0, 0.0, 0.0, 0.0],
+        },
+    }];
+
+    let group_index = 0;
+    let group = &app.groups[group_index].settings;
+
+    let mut render_pass_begin = vk::RenderPassBeginInfo {
+        render_pass: visibility_convervative.render_pass,
+        framebuffer: visibility_convervative.framebuffer,
+        render_area: vk::Rect2D {
+            offset: vk::Offset2D { x: 0, y: 0 },
+            extent: vk::Extent2D {
+                width: group.width,
+                height: group.height,
+            },
+        },
+        ..Default::default()
     };
 
-    for i in 0..app.groups.len() {
-        let group = &mut app.groups[i];
-        let group_index = group.index;
-        let pixels = &mut group.lightmap_diffuse_final;
-        let direction_pixels = &mut group.lightmap_directional;
+    render_pass_begin = render_pass_begin.clear_values(&clear_values);
 
-        let settings = group.settings.clone();
+    let cmd = app.vk.begin_single_use_cmd();
+    let mesh = &app.gpu_mesh;
 
-        let width = group.settings.width;
-        let height = group.settings.height;
-
-        if settings.dilate {
-            let start_time = std::time::Instant::now();
-            let backface_threshold = 0.0;
-
-            inpaint(pixels, width, height, backface_threshold, 16);
-
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(start_time).as_secs_f32();
-
-            let message = format!("Dilation complete {}s", elapsed);
-            (log)(LogMessage::message(&message));
-        }
-
-        if settings.denoise {
-            let start_time = std::time::Instant::now();
-
-            match &oidn {
-                Some(oidn) => {
-                    oidn.denoise(pixels, width as usize, height as usize, false);
-                }
-                None => {}
-            }
-
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(start_time).as_secs_f32();
-
-            let message = format!("Denoise Complete {}s", elapsed);
-            (log)(LogMessage::message(&message));
-        }
-
-        if settings.fix_seams {
-            let start_time = std::time::Instant::now();
-
-            fix_seams(
-                pixels,
-                width,
-                height,
-                &app.seams,
-                app.config.seams_debug,
-                group_index,
-            );
-
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(start_time).as_secs_f32();
-
-            let message = format!("Seam Fix Complete {}s", elapsed);
-            (log)(LogMessage::message(&message));
-        }
-
-        encode_directional_lightmap_rgb(pixels, direction_pixels);
-        if settings.denoise {
-            match &oidn {
-                Some(oidn) => {
-                    oidn.denoise(direction_pixels, width as usize, height as usize, true);
-                }
-                None => {}
-            }
-        }
-        if settings.fix_seams {
-            fix_seams(
-                direction_pixels,
-                width,
-                height,
-                &app.seams,
-                app.config.seams_debug,
-                group_index,
-            );
-        }
-        encode_directional_lightmap_alpha(pixels, direction_pixels);
-
-        let readback_data = LightmapReadbackData {
-            group_index,
-            ty: 0,
-            pixels: pixels.as_ptr(),
-            pixels_count: pixels.len() as u32,
-            width,
-            height,
-        };
-
-        (app.config.lightmap_read_callback)(readback_data);
-
-        let readback_data = LightmapReadbackData {
-            group_index,
-            ty: 1,
-            pixels: direction_pixels.as_ptr(),
-            pixels_count: direction_pixels.len() as u32,
-            width,
-            height,
-        };
-
-        (app.config.lightmap_read_callback)(readback_data);
-
-        // todo emissions and previous diffuse can be merged here for light probes
-        // but one is flipped for some reason
-        previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
-    }
-
-    if app.probes.len() > 0 {
-        let shader = &app.bake_probes_shader;
-
-        let diffuses: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
-
-        update_bake_sh_shader(
-            &app.vk,
-            shader,
-            app.tlas.acceleration_structure(),
-            app.probes_buffer.buffer,
-            &albedos,
-            &emissions,
-            &diffuses,
-            app.texture_sampler,
-            app.gpu_mesh.index_buffer.buffer,
-            app.gpu_mesh.vertex_buffer.buffer,
-            app.gpu_lights.buffer,
+    unsafe {
+        let vk = &app.vk.device;
+        vk.cmd_begin_render_pass(cmd, &render_pass_begin, vk::SubpassContents::INLINE);
+        vk.cmd_bind_pipeline(
+            cmd,
+            vk::PipelineBindPoint::GRAPHICS,
+            visibility_convervative.pipeline,
         );
 
-        let mut push = BakeSHPushConstants {
-            lights_count,
-            max_samples: app.config.probe_samples,
-            sample_index: 0,
-            probes_count: app.probes.len() as u32,
+        vk.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::GRAPHICS,
+            visibility_convervative.pipeline_layout,
+            0,
+            &[visibility_convervative.descriptor_set],
+            &[],
+        );
+
+        let push = VisibilityPushConstants {
+            width: group.width,
+            height: group.height,
+            group_index: group_index as u32,
+            convervative: 1,
         };
+        let constants_bytes = as_bytes(&push);
+        vk.cmd_push_constants(
+            cmd,
+            visibility_convervative.pipeline_layout,
+            vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX,
+            0,
+            &constants_bytes,
+        );
 
-        loop {
-            let vk = &app.vk.device;
+        // vk.cmd_set_viewport(
+        //     cmd,
+        //     0,
+        //     &[vk::Viewport {
+        //         x: 0.0,
+        //         y: 0.0,
+        //         width: group.width as f32,
+        //         height: group.height as f32,
+        //         min_depth: 0.0,
+        //         max_depth: 1.0,
+        //     }],
+        // );
 
-            let cmd = app.vk.command_buffer;
+        // vk.cmd_set_scissor(
+        //     cmd,
+        //     0,
+        //     &[vk::Rect2D {
+        //         offset: vk::Offset2D { x: 0, y: 0 },
+        //         extent: vk::Extent2D {
+        //             width: group.width,
+        //             height: group.height,
+        //         },
+        //     }],
+        // );
 
-            let begin_info = vk::CommandBufferBeginInfo {
-                flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-                ..Default::default()
-            };
+        vk.cmd_draw(cmd, mesh.index_len * 3, 1, 0, 0);
 
-            let probes_count = app.probes.len() as u32;
+        vk.cmd_end_render_pass(cmd);
+    }
 
-            let groups_x = (probes_count + 63) / 64;
-
-            let constants_bytes = as_bytes(&push);
-
-            unsafe {
-                vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
-                    .unwrap();
-
-                vk.begin_command_buffer(cmd, &begin_info).unwrap();
-
-                vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
-
-                vk.cmd_bind_descriptor_sets(
-                    cmd,
-                    vk::PipelineBindPoint::COMPUTE,
-                    shader.pipeline_layout,
-                    0,
-                    &[shader.descriptor_set],
-                    &[],
-                );
-
-                vk.cmd_push_constants(
-                    cmd,
-                    shader.pipeline_layout,
-                    vk::ShaderStageFlags::COMPUTE,
-                    0,
-                    &constants_bytes,
-                );
-
-                vk.cmd_dispatch(cmd, groups_x, 1, 1);
-
-                let vk = &app.vk.device;
-
-                let cmds = [cmd];
-                let submit = vk::SubmitInfo::default().command_buffers(&cmds);
-
-                vk.end_command_buffer(cmd).unwrap();
-
-                vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
-                    .unwrap();
-
-                vk.queue_wait_idle(app.vk.compute_queue).unwrap()
-            };
-
-            push.sample_index += 1;
-            if push.sample_index >= push.max_samples {
-                break;
-            }
-        }
-
-        println!("light probes baked");
-
-        unsafe {
-            app.vk.device.device_wait_idle().unwrap();
-        }
-
-        // println!("Probes:\n{:#?}", &app.probes);
+    app.vk.end_single_use_cmd(cmd);
+    unsafe {
         app.vk
-            .download_buffer(app.probes_buffer.buffer, &mut app.probes);
+            .device
+            .queue_wait_idle(app.vk.graphics_queue)
+            .unwrap()
+    };
 
-        let readback_data = LightprobesReadbackData {
-            probes: app.probes.as_ptr(),
-            pixels_count: app.probes.len() as u32,
-        };
+    let mut pixels = Vec::new();
+    visibility_expanded.read_pixels(&app.vk, &mut pixels, &app.staging_buffer);
 
-        (app.config.lightprobes_read_callback)(readback_data);
-    }
+    visibility_convervative.destroy(&app.vk);
+    visibility_expanded.destroy(&app.vk);
 
-    for group in &mut app.groups {
-        group.emission.destroy(&app.vk);
-    }
+    let readback_data = LightmapReadbackData {
+        group_index: group_index as u32,
+        ty: 0,
+        pixels: pixels.as_ptr(),
+        pixels_count: pixels.len() as u32,
+        width: group.width,
+        height: group.height,
+    };
 
-    for tex in &mut previous_diffuses {
-        tex.destroy(&app.vk);
-    }
+    (app.config.lightmap_read_callback)(readback_data);
 }
+
+// fn render_lightmaps(app: &mut Stilb) {
+//     let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
+//     let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
+
+//     let any_denoise = app.groups.iter().any(|x| x.settings.denoise);
+//     let log = app.config.log_callback;
+
+//     let oidn = if any_denoise {
+//         let oidn = Oidn::load();
+//         if oidn.is_err() {
+//             let err = oidn.err();
+//             match err {
+//                 Some(err) => {
+//                     let message = "Failed to load Open Image Denoise";
+//                     (log)(LogMessage::message(&message));
+//                     (log)(LogMessage::message(&err.to_string()))
+//                 }
+//                 None => {}
+//             };
+//             None
+//         } else {
+//             Some(oidn.unwrap())
+//         }
+//     } else {
+//         None
+//     };
+
+//     app.adjust_samples_shader = load_adjust_samples_shader(&app.vk, &app.constants);
+
+//     let mut max_resolution = (1, 1);
+//     for group in &app.groups {
+//         max_resolution.0 = u32::max(max_resolution.0, group.settings.width);
+//         max_resolution.1 = u32::max(max_resolution.1, group.settings.height);
+//     }
+//     let dominant_direction_pixels_size =
+//         std::mem::size_of::<f32>() as u32 * max_resolution.0 * max_resolution.1 * 4;
+
+//     let usage = vk::BufferUsageFlags::TRANSFER_DST
+//         | vk::BufferUsageFlags::STORAGE_BUFFER
+//         | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+//         | vk::BufferUsageFlags::TRANSFER_SRC;
+
+//     // todo diffuse should probably be switched to a buffer as well to not waste the alpha and for easier copy
+
+//     let dominant_direction_buffer = Buffer::empty(
+//         &app.vk,
+//         "Dominant Direction".to_owned(),
+//         dominant_direction_pixels_size as vk::DeviceSize,
+//         usage,
+//         vk::MemoryPropertyFlags::DEVICE_LOCAL,
+//     );
+//     let mut directional_pixels_temp =
+//         vec![0.0f32; (max_resolution.0 * max_resolution.1 * 4) as usize];
+//     let usage = vk::BufferUsageFlags::TRANSFER_DST;
+//     let properties = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+//     let (staging_buffer, staging_memory, _) = app.vk.create_buffer(
+//         dominant_direction_pixels_size as vk::DeviceSize,
+//         usage,
+//         properties,
+//     );
+
+//     let mut bake_direct_shader = load_bake_direct_shader(&app.vk, &app.constants);
+
+//     let lights_count = app.cpu_lights.len() as u32;
+
+//     let mut previous_diffuses = Vec::new();
+
+//     let bounce_count = app.config.bounce_count;
+
+//     for i in 0..app.groups.len() {
+//         let group = &app.groups[i];
+//         let settings = group.settings.clone();
+
+//         let diffuse = Texture2D::new(
+//             &app.vk,
+//             settings.width,
+//             settings.height,
+//             vk::Format::R32G32B32A32_SFLOAT,
+//             vk::ImageUsageFlags::SAMPLED
+//                 | vk::ImageUsageFlags::TRANSFER_SRC
+//                 | vk::ImageUsageFlags::TRANSFER_DST,
+//             String::from("Diffuse Copy"),
+//         );
+
+//         previous_diffuses.push(diffuse);
+//     }
+
+//     let log = app.config.log_callback;
+
+//     let mut progress = 0.0;
+//     let progress_max = app.groups.len() as u32 * app.config.direct_samples
+//         + app.groups.len() as u32 * app.config.indirect_samples * app.config.bounce_count;
+
+//     let progress_scale = 1.0 / progress_max as f32;
+
+//     for i in 0..app.groups.len() {
+//         let message = format!("Baking Direct (Group {}/{})", i + 1, app.groups.len());
+
+//         let group = &app.groups[i];
+
+//         let settings = group.settings.clone();
+
+//         let width = group.settings.width;
+//         let height = group.settings.height;
+
+//         let mut push = BakeDirectPushConstants {
+//             width,
+//             height,
+//             sample_index: 0,
+//             max_samples: app.config.direct_samples,
+//             lights_count,
+//             pad0: 0,
+//             pad1: 0,
+//             pad2: 0,
+//         };
+
+//         update_render_target(app, &settings, group.index);
+
+//         let visibility = &mut app.render_target.visibility;
+//         let diffuse = &mut app.render_target.diffuse;
+
+//         let shader = &bake_direct_shader;
+
+//         update_bake_direct_shader(
+//             &app.vk,
+//             shader,
+//             app.tlas.acceleration_structure(),
+//             visibility.view(),
+//             &albedos,
+//             &emissions,
+//             diffuse.view(),
+//             app.texture_sampler,
+//             app.gpu_mesh.index_buffer.buffer,
+//             app.gpu_mesh.vertex_buffer.buffer,
+//             app.gpu_lights.buffer,
+//             app.emissive_triangles_buffer.buffer,
+//             dominant_direction_buffer.buffer,
+//         );
+
+//         let cmd = app.vk.command_buffer;
+//         let vk = &app.vk.device;
+
+//         let groups_x = (width + 7) / 8;
+//         let groups_y = (height + 7) / 8;
+
+//         let begin_info = vk::CommandBufferBeginInfo {
+//             flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+//             ..Default::default()
+//         };
+
+//         loop {
+//             (log)(LogMessage::progress(&message, progress * progress_scale));
+
+//             unsafe {
+//                 vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+//                     .unwrap();
+
+//                 vk.begin_command_buffer(cmd, &begin_info).unwrap();
+
+//                 if diffuse.layout() != vk::ImageLayout::GENERAL {
+//                     let barrier = diffuse.barrier(
+//                         vk::ImageLayout::GENERAL,
+//                         vk::AccessFlags::default(),
+//                         vk::AccessFlags::SHADER_WRITE,
+//                     );
+//                     vk.cmd_pipeline_barrier(
+//                         cmd,
+//                         vk::PipelineStageFlags::TOP_OF_PIPE,
+//                         vk::PipelineStageFlags::COMPUTE_SHADER,
+//                         vk::DependencyFlags::empty(),
+//                         &[],
+//                         &[],
+//                         &[barrier],
+//                     );
+//                 }
+
+//                 vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+//                 vk.cmd_bind_descriptor_sets(
+//                     cmd,
+//                     vk::PipelineBindPoint::COMPUTE,
+//                     shader.pipeline_layout,
+//                     0,
+//                     &[shader.descriptor_set],
+//                     &[],
+//                 );
+
+//                 let constants_bytes = as_bytes(&push);
+
+//                 vk.cmd_push_constants(
+//                     cmd,
+//                     shader.pipeline_layout,
+//                     vk::ShaderStageFlags::COMPUTE,
+//                     0,
+//                     &constants_bytes,
+//                 );
+
+//                 vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
+
+//                 let cmds = [cmd];
+//                 let submit = vk::SubmitInfo::default().command_buffers(&cmds);
+
+//                 vk.end_command_buffer(cmd).unwrap();
+
+//                 vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
+//                     .unwrap();
+
+//                 vk.queue_wait_idle(app.vk.compute_queue).unwrap()
+//             };
+
+//             push.sample_index += 1;
+
+//             if push.sample_index >= push.max_samples {
+//                 break;
+//             } else {
+//                 progress += 1.0;
+//             }
+//         }
+
+//         if bounce_count > 0 {
+//             copy_image(&app.vk, diffuse, &mut previous_diffuses[i]);
+//         }
+
+//         diffuse.read_pixels(
+//             &app.vk,
+//             &mut app.groups[i].lightmap_diffuse_final,
+//             &app.staging_buffer,
+//         );
+
+//         app.groups[i].lightmap_directional = vec![0.0; app.groups[i].lightmap_diffuse_final.len()];
+
+//         let regions = vk::BufferCopy {
+//             src_offset: 0,
+//             dst_offset: 0,
+//             size: (app.groups[i].lightmap_directional.len() * std::mem::size_of::<f32>())
+//                 as vk::DeviceSize,
+//         };
+//         app.vk.download_buffer_with_staging(
+//             dominant_direction_buffer.buffer,
+//             &mut directional_pixels_temp,
+//             staging_buffer,
+//             staging_memory,
+//             regions,
+//         );
+//         let dir = &mut app.groups[i].lightmap_directional;
+//         for i in 0..dir.len() {
+//             dir[i] = directional_pixels_temp[i];
+//         }
+//     }
+
+//     bake_direct_shader.destroy(&app.vk);
+
+//     let mut bake_bounce_shader = load_bake_bounce_shader(&app.vk, &app.constants);
+
+//     for bounce_index in 0..bounce_count {
+//         let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
+
+//         for i in 0..app.groups.len() {
+//             let message = format!(
+//                 "Baking Bounce {}/{} (Group {}/{})",
+//                 bounce_index + 1,
+//                 bounce_count,
+//                 i + 1,
+//                 app.groups.len(),
+//             );
+
+//             let group = &app.groups[i];
+
+//             let settings = group.settings.clone();
+
+//             let width = group.settings.width;
+//             let height = group.settings.height;
+
+//             let mut push = BakeBouncePushConstants {
+//                 width,
+//                 height,
+//                 sample_index: 0,
+//                 max_samples: app.config.indirect_samples,
+//                 bounce_index: bounce_index as u32,
+//                 pad0: 0,
+//                 pad1: 0,
+//                 pad2: 0,
+//             };
+
+//             update_render_target(app, &settings, group.index);
+
+//             let visibility = &mut app.render_target.visibility;
+//             let diffuse = &mut app.render_target.diffuse;
+
+//             let shader = &bake_bounce_shader;
+
+//             update_bake_bounce_shader(
+//                 &app.vk,
+//                 shader,
+//                 app.tlas.acceleration_structure(),
+//                 visibility.view(),
+//                 &albedos,
+//                 &previous,
+//                 diffuse.view(),
+//                 app.texture_sampler,
+//                 app.gpu_mesh.index_buffer.buffer,
+//                 app.gpu_mesh.vertex_buffer.buffer,
+//                 dominant_direction_buffer.buffer,
+//             );
+
+//             let cmd = app.vk.command_buffer;
+//             let vk = &app.vk.device;
+
+//             let groups_x = (width + 7) / 8;
+//             let groups_y = (height + 7) / 8;
+
+//             let begin_info = vk::CommandBufferBeginInfo {
+//                 flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+//                 ..Default::default()
+//             };
+
+//             loop {
+//                 (log)(LogMessage::progress(&message, progress * progress_scale));
+
+//                 unsafe {
+//                     vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+//                         .unwrap();
+
+//                     vk.begin_command_buffer(cmd, &begin_info).unwrap();
+
+//                     if diffuse.layout() != vk::ImageLayout::GENERAL {
+//                         let barrier = diffuse.barrier(
+//                             vk::ImageLayout::GENERAL,
+//                             vk::AccessFlags::default(),
+//                             vk::AccessFlags::SHADER_WRITE,
+//                         );
+//                         vk.cmd_pipeline_barrier(
+//                             cmd,
+//                             vk::PipelineStageFlags::TOP_OF_PIPE,
+//                             vk::PipelineStageFlags::COMPUTE_SHADER,
+//                             vk::DependencyFlags::empty(),
+//                             &[],
+//                             &[],
+//                             &[barrier],
+//                         );
+//                     }
+
+//                     vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+//                     vk.cmd_bind_descriptor_sets(
+//                         cmd,
+//                         vk::PipelineBindPoint::COMPUTE,
+//                         shader.pipeline_layout,
+//                         0,
+//                         &[shader.descriptor_set],
+//                         &[],
+//                     );
+
+//                     let constants_bytes = as_bytes(&push);
+
+//                     vk.cmd_push_constants(
+//                         cmd,
+//                         shader.pipeline_layout,
+//                         vk::ShaderStageFlags::COMPUTE,
+//                         0,
+//                         &constants_bytes,
+//                     );
+
+//                     vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
+
+//                     let cmds = [cmd];
+//                     let submit = vk::SubmitInfo::default().command_buffers(&cmds);
+
+//                     vk.end_command_buffer(cmd).unwrap();
+
+//                     vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
+//                         .unwrap();
+
+//                     vk.queue_wait_idle(app.vk.compute_queue).unwrap()
+//                 };
+
+//                 push.sample_index += 1;
+
+//                 if push.sample_index >= push.max_samples {
+//                     break;
+//                 } else {
+//                     progress += 1.0;
+//                 }
+//             }
+
+//             unsafe { app.vk.device.queue_wait_idle(app.vk.compute_queue).unwrap() }
+
+//             diffuse.read_pixels(
+//                 &app.vk,
+//                 &mut app.groups[i].lightmap_diffuse_previous_bounce,
+//                 &app.staging_buffer,
+//             );
+
+//             let group = &mut app.groups[i];
+//             let src = &group.lightmap_diffuse_previous_bounce;
+//             let dst = &mut group.lightmap_diffuse_final;
+
+//             for (d, s) in dst.iter_mut().zip(src) {
+//                 *d += s;
+//             }
+
+//             let regions = vk::BufferCopy {
+//                 src_offset: 0,
+//                 dst_offset: 0,
+//                 size: (group.lightmap_directional.len() * std::mem::size_of::<f32>())
+//                     as vk::DeviceSize,
+//             };
+//             app.vk.download_buffer_with_staging(
+//                 dominant_direction_buffer.buffer,
+//                 &mut directional_pixels_temp,
+//                 staging_buffer,
+//                 staging_memory,
+//                 regions,
+//             );
+//             let src = &directional_pixels_temp;
+//             let dst = &mut group.lightmap_directional;
+
+//             // .w stores normal so skip that
+//             for i in 0..(group.settings.width * group.settings.height) as usize {
+//                 let i = i * 4;
+
+//                 let x = i + 0;
+//                 let y = i + 1;
+//                 let z = i + 2;
+
+//                 dst[x] += src[x];
+//                 dst[y] += src[y];
+//                 dst[z] += src[z];
+//             }
+//         }
+
+//         let last_bounce = bounce_index == bounce_count - 1;
+
+//         if !last_bounce {
+//             for i in 0..app.groups.len() {
+//                 let group = &mut app.groups[i];
+//                 let pixels = &group.lightmap_diffuse_previous_bounce;
+//                 previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
+//             }
+//         }
+//     }
+
+//     bake_bounce_shader.destroy(&app.vk);
+//     app.adjust_samples_shader.destroy(&app.vk);
+
+//     unsafe {
+//         app.vk.device.destroy_buffer(staging_buffer, None);
+//         app.vk.device.free_memory(staging_memory, None);
+//     };
+
+//     for i in 0..app.groups.len() {
+//         let group = &mut app.groups[i];
+//         let group_index = group.index;
+//         let pixels = &mut group.lightmap_diffuse_final;
+//         let direction_pixels = &mut group.lightmap_directional;
+
+//         let settings = group.settings.clone();
+
+//         let width = group.settings.width;
+//         let height = group.settings.height;
+
+//         if settings.dilate {
+//             let start_time = std::time::Instant::now();
+//             let backface_threshold = 0.0;
+
+//             inpaint(pixels, width, height, backface_threshold, 16);
+
+//             let now = std::time::Instant::now();
+//             let elapsed = now.duration_since(start_time).as_secs_f32();
+
+//             let message = format!("Dilation complete {}s", elapsed);
+//             (log)(LogMessage::message(&message));
+//         }
+
+//         if settings.denoise {
+//             let start_time = std::time::Instant::now();
+
+//             match &oidn {
+//                 Some(oidn) => {
+//                     oidn.denoise(pixels, width as usize, height as usize, false);
+//                 }
+//                 None => {}
+//             }
+
+//             let now = std::time::Instant::now();
+//             let elapsed = now.duration_since(start_time).as_secs_f32();
+
+//             let message = format!("Denoise Complete {}s", elapsed);
+//             (log)(LogMessage::message(&message));
+//         }
+
+//         if settings.fix_seams {
+//             let start_time = std::time::Instant::now();
+
+//             fix_seams(
+//                 pixels,
+//                 width,
+//                 height,
+//                 &app.seams,
+//                 app.config.seams_debug,
+//                 group_index,
+//             );
+
+//             let now = std::time::Instant::now();
+//             let elapsed = now.duration_since(start_time).as_secs_f32();
+
+//             let message = format!("Seam Fix Complete {}s", elapsed);
+//             (log)(LogMessage::message(&message));
+//         }
+
+//         encode_directional_lightmap_rgb(pixels, direction_pixels);
+//         if settings.denoise {
+//             match &oidn {
+//                 Some(oidn) => {
+//                     oidn.denoise(direction_pixels, width as usize, height as usize, true);
+//                 }
+//                 None => {}
+//             }
+//         }
+//         if settings.fix_seams {
+//             fix_seams(
+//                 direction_pixels,
+//                 width,
+//                 height,
+//                 &app.seams,
+//                 app.config.seams_debug,
+//                 group_index,
+//             );
+//         }
+//         encode_directional_lightmap_alpha(pixels, direction_pixels);
+
+//         let readback_data = LightmapReadbackData {
+//             group_index,
+//             ty: 0,
+//             pixels: pixels.as_ptr(),
+//             pixels_count: pixels.len() as u32,
+//             width,
+//             height,
+//         };
+
+//         (app.config.lightmap_read_callback)(readback_data);
+
+//         let readback_data = LightmapReadbackData {
+//             group_index,
+//             ty: 1,
+//             pixels: direction_pixels.as_ptr(),
+//             pixels_count: direction_pixels.len() as u32,
+//             width,
+//             height,
+//         };
+
+//         (app.config.lightmap_read_callback)(readback_data);
+
+//         // todo emissions and previous diffuse can be merged here for light probes
+//         // but one is flipped for some reason
+//         previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
+//     }
+
+//     if app.probes.len() > 0 {
+//         let shader = &app.bake_probes_shader;
+
+//         let diffuses: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
+
+//         update_bake_sh_shader(
+//             &app.vk,
+//             shader,
+//             app.tlas.acceleration_structure(),
+//             app.probes_buffer.buffer,
+//             &albedos,
+//             &emissions,
+//             &diffuses,
+//             app.texture_sampler,
+//             app.gpu_mesh.index_buffer.buffer,
+//             app.gpu_mesh.vertex_buffer.buffer,
+//             app.gpu_lights.buffer,
+//         );
+
+//         let mut push = BakeSHPushConstants {
+//             lights_count,
+//             max_samples: app.config.probe_samples,
+//             sample_index: 0,
+//             probes_count: app.probes.len() as u32,
+//         };
+
+//         loop {
+//             let vk = &app.vk.device;
+
+//             let cmd = app.vk.command_buffer;
+
+//             let begin_info = vk::CommandBufferBeginInfo {
+//                 flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+//                 ..Default::default()
+//             };
+
+//             let probes_count = app.probes.len() as u32;
+
+//             let groups_x = (probes_count + 63) / 64;
+
+//             let constants_bytes = as_bytes(&push);
+
+//             unsafe {
+//                 vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+//                     .unwrap();
+
+//                 vk.begin_command_buffer(cmd, &begin_info).unwrap();
+
+//                 vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+//                 vk.cmd_bind_descriptor_sets(
+//                     cmd,
+//                     vk::PipelineBindPoint::COMPUTE,
+//                     shader.pipeline_layout,
+//                     0,
+//                     &[shader.descriptor_set],
+//                     &[],
+//                 );
+
+//                 vk.cmd_push_constants(
+//                     cmd,
+//                     shader.pipeline_layout,
+//                     vk::ShaderStageFlags::COMPUTE,
+//                     0,
+//                     &constants_bytes,
+//                 );
+
+//                 vk.cmd_dispatch(cmd, groups_x, 1, 1);
+
+//                 let vk = &app.vk.device;
+
+//                 let cmds = [cmd];
+//                 let submit = vk::SubmitInfo::default().command_buffers(&cmds);
+
+//                 vk.end_command_buffer(cmd).unwrap();
+
+//                 vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
+//                     .unwrap();
+
+//                 vk.queue_wait_idle(app.vk.compute_queue).unwrap()
+//             };
+
+//             push.sample_index += 1;
+//             if push.sample_index >= push.max_samples {
+//                 break;
+//             }
+//         }
+
+//         println!("light probes baked");
+
+//         unsafe {
+//             app.vk.device.device_wait_idle().unwrap();
+//         }
+
+//         // println!("Probes:\n{:#?}", &app.probes);
+//         app.vk
+//             .download_buffer(app.probes_buffer.buffer, &mut app.probes);
+
+//         let readback_data = LightprobesReadbackData {
+//             probes: app.probes.as_ptr(),
+//             pixels_count: app.probes.len() as u32,
+//         };
+
+//         (app.config.lightprobes_read_callback)(readback_data);
+//     }
+
+//     for group in &mut app.groups {
+//         group.emission.destroy(&app.vk);
+//     }
+
+//     for tex in &mut previous_diffuses {
+//         tex.destroy(&app.vk);
+//     }
+// }
 
 fn octahedron_wrap(v: Vector2) -> Vector2 {
     let sign_x = if v.x >= 0.0 { 1.0 } else { -1.0 };
