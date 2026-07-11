@@ -1340,6 +1340,16 @@ fn render_lightmaps(app: &mut Stilb) {
                 None => {}
             }
         }
+        if settings.fix_seams {
+            fix_seams(
+                direction_pixels,
+                width,
+                height,
+                &app.seams,
+                app.config.seams_debug,
+                group_index,
+            );
+        }
         encode_directional_lightmap_alpha(pixels, direction_pixels);
 
         let readback_data = LightmapReadbackData {
