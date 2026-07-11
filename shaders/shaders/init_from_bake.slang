@@ -41,6 +41,7 @@ struct Varyings
         float2 resolution = float2(Push.width, Push.height);
         float2 uv = v.GetUV() / resolution;
 
+        // todo write correctly offset into a larger render target
         o.positionCS = float4(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, 0.0, 1.0);
         o.primitiveID = primitiveID;
         o.bary = barys[index];

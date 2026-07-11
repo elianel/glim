@@ -957,6 +957,8 @@ fn render_lightmaps3(app: &mut Stilb) {
 
             vk.cmd_draw(cmd, mesh.index_len * 3, 1, 0, 0);
             vk.cmd_end_render_pass(cmd);
+            // AttachmentDescription final_layout: vk::ImageLayout::GENERAL
+            visibility_expanded.set_layout(vk::ImageLayout::GENERAL);
 
             let current_buffer_size =
                 (current_pixel_count * std::mem::size_of::<u32>() / 32) as u64;

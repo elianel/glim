@@ -639,4 +639,8 @@ impl Texture2D {
     pub fn view(&self) -> vk::ImageView {
         self.view
     }
+
+    pub fn set_layout(&mut self, layout: vk::ImageLayout) {
+        self.layout = layout;
+    }
 }
