@@ -297,7 +297,7 @@ pub struct VisibilityPushConstants {
     pub width: u32,
     pub height: u32,
     pub group_index: u32,
-    pub convervative: u32,
+    pub mask_only: u32,
 }
 
 pub fn load_visibility_shader(

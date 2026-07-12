@@ -8,7 +8,7 @@ struct PushConstants
     uint width;
     uint height;
     uint groupIndex;
-    uint convervative;
+    uint maskOnly;
 };
 
 struct Varyings
@@ -53,6 +53,12 @@ struct Varyings
     [shader("fragment")] uint2 fragment(Varyings varyings)
     : SV_Target
 {
+
+    if (Push.maskOnly > 0)
+    {
+        return 1;
+    }
+
     uint primitiveID = varyings.primitiveID;
     float2 bary = varyings.bary;
 
