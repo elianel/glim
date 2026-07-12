@@ -923,7 +923,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         let compaction_push = CompactionPushConstants {
             width: group.width,
             height: group.height,
-            offset: expanded_group_offset / 32,
+            offset: expanded_group_offset,
             pad1: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
@@ -988,7 +988,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         };
 
         expanded_groups_start[group_index] = expanded_group_offset as usize;
-        expanded_group_offset += group.width * group.height;
+        expanded_group_offset += (group.width * group.height) / 32;
     }
 
     let mut compaction_buffer_cpu = vec![0u32; compaction_buffer.bytes as usize / 4];
@@ -1018,12 +1018,11 @@ fn render_lightmaps3(app: &mut Stilb) {
     }
 
     const DEBUG_COMPACTION: bool = true;
-    let mut debug_pixels: Vec<f32> = Vec::new();
 
     let mut compacted_pixels_count = 0;
 
     for group_index in 0..app.groups.len() {
-        let group_start = expanded_groups_start[group_index];
+        let group_start = expanded_groups_start[group_index] * 2;
 
         let group = &app.groups[group_index].settings;
         let pixel_count = (group.width * group.height) as usize;
@@ -1040,6 +1039,8 @@ fn render_lightmaps3(app: &mut Stilb) {
         compacted_pixels_count += prefix_sum;
 
         if DEBUG_COMPACTION {
+            let mut debug_pixels: Vec<f32> = Vec::new();
+
             for i in 0..pixel_count {
                 let word = i / 32;
                 let bit = i & 31;
@@ -1077,8 +1078,11 @@ fn render_lightmaps3(app: &mut Stilb) {
         }
     }
 
+    let log = app.config.log_callback;
+
     let reduction = 1.0 - (compacted_pixels_count as f32 / total_pixel_count as f32);
-    println!("Compaction: {}%", reduction * 100.0);
+    let message = format!("Compaction: {}%", reduction * 100.0);
+    (log)(LogMessage::message(&message));
 
     compaction_shader.destroy(&app.vk);
     compaction_buffer.destroy(&app.vk);

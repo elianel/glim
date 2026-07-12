@@ -205,7 +205,7 @@ namespace stilb
                 SphericalHarmonicsL2 sh = new();
                 var obj = lightProbesRef as LightProbes;
                 Debug.Assert(obj != null);
-                if (obj != null)
+                if (obj != null && _bakeProbesResults.Count > 0)
                 {
                     SphericalHarmonicsL2[] bakedProbesArray = obj.bakedProbes;
                     int bakedCoeffCount = bakedProbesArray.Length;
