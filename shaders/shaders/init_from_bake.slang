@@ -5,10 +5,12 @@ PushConstants Push;
 
 struct PushConstants
 {
-    uint width;
-    uint height;
+    uint2 resolution;
     uint groupIndex;
     uint maskOnly;
+
+    uint2 rtResolution;
+    uint2 pad;
 };
 
 struct Varyings
@@ -38,11 +40,16 @@ struct Varyings
     }
     else
     {
-        float2 resolution = float2(Push.width, Push.height);
+        float2 resolution = Push.resolution;
+        float2 rtResolution = Push.rtResolution;
+
+        float2 scale = resolution / rtResolution;
         float2 uv = v.GetUV() / resolution;
 
-        // todo write correctly offset into a larger render target
-        o.positionCS = float4(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, 0.0, 1.0);
+        uv.y = 1.0 - uv.y;
+        uv *= scale;
+
+        o.positionCS = float4(uv * 2.0 - 1.0, 0.0, 1.0);
         o.primitiveID = primitiveID;
         o.bary = barys[index];
     }

@@ -268,6 +268,10 @@ fn render_visibility_from_lightmap(app: &mut Stilb, width: u32, height: u32, gro
             height: visibility.height(),
             group_index,
             mask_only: 0,
+            rt_width: visibility.width(),
+            rt_height: visibility.height(),
+            pad0: 0,
+            pad1: 0,
         };
         let constants_bytes = as_bytes(&push);
         vk.device.cmd_push_constants(
@@ -303,6 +307,10 @@ fn render_visibility_from_lightmap(app: &mut Stilb, width: u32, height: u32, gro
             height: visibility.height(),
             group_index,
             mask_only: 0,
+            rt_width: visibility.width(),
+            rt_height: visibility.height(),
+            pad0: 0,
+            pad1: 0,
         };
         let constants_bytes = as_bytes(&push);
         vk.device.cmd_push_constants(
@@ -917,6 +925,10 @@ fn render_lightmaps3(app: &mut Stilb) {
             height: group.height,
             group_index: group_index as u32,
             mask_only: 1,
+            rt_width: visibility_expanded.width(),
+            rt_height: visibility_expanded.height(),
+            pad0: 0,
+            pad1: 0,
         };
         let visibility_push_bytes = as_bytes(&visibility_push);
 
