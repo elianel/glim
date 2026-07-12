@@ -18,8 +18,7 @@ pub fn load_shader_compaction_mask(
     let mut bindings = Vec::new();
 
     bind_visibility(&mut bindings);
-    bind_compaction_mask_buffer(&mut bindings);
-    bind_compaction_prefix_buffer(&mut bindings);
+    bind_compaction_buffer(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
     let data_bytes = as_bytes(constants);
@@ -48,8 +47,7 @@ pub fn update_shader_compaction_mask(
     vk: &VulkanContext,
     shader: &ComputeShader,
     visibility: vk::ImageView,
-    compaction_mask: vk::Buffer,
-    compaction_prefix: vk::Buffer,
+    compaction: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -70,28 +68,13 @@ pub fn update_shader_compaction_mask(
 
     // CompactionMaskBuffer
     let info = [vk::DescriptorBufferInfo {
-        buffer: compaction_mask,
+        buffer: compaction,
         offset: 0,
         range: vk::WHOLE_SIZE,
     }];
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
         dst_binding: 15,
-        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
-        ..Default::default()
-    };
-    write = write.buffer_info(&info);
-    descriptor_writes.push(write);
-
-    // CompactionPrefixBuffer
-    let info = [vk::DescriptorBufferInfo {
-        buffer: compaction_mask,
-        offset: 0,
-        range: vk::WHOLE_SIZE,
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 16,
         descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
         ..Default::default()
     };

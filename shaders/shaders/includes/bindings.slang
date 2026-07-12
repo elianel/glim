@@ -54,10 +54,7 @@ Texture2D<float4> PreviousDiffuse[];
 RWStructuredBuffer<float> DominantDirection;
 
 [[vk::binding(15, 0)]]
-RWStructuredBuffer<uint> CompactionMaskBuffer;
-
-[[vk::binding(16, 0)]]
-RWStructuredBuffer<uint> CompactionPrefixBuffer;
+RWStructuredBuffer<uint2> CompactionBuffer;
 
 [vk::constant_id(0)] const uint USE_CAMERA;
 [vk::constant_id(1)] const uint LIGHT_FALLOFF_TYPE;

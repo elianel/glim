@@ -32,8 +32,6 @@ struct PushConstants
 
     if (WaveIsFirstLane())
     {
-        CompactionMaskBuffer[groupID.x + Push.offset] = mask;
+        CompactionBuffer[groupID.x + Push.offset] = uint2(mask, countbits(mask));
     }
-
-    uint activeCount = countbits(mask);
 }

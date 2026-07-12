@@ -830,8 +830,8 @@ fn render_lightmaps3(app: &mut Stilb) {
     // let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
     // let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
 
-    let max_pixel_count = max_resolution.0 * max_resolution.1;
-    let max_pixels_size = (max_pixel_count * std::mem::size_of::<f32>() as u32) as vk::DeviceSize;
+    // let max_pixel_count = max_resolution.0 * max_resolution.1;
+    // let max_pixels_size = (max_pixel_count * std::mem::size_of::<f32>() as u32) as vk::DeviceSize;
 
     let mut visibility_expanded = Texture2D::new(
         &app.vk,
@@ -860,26 +860,16 @@ fn render_lightmaps3(app: &mut Stilb) {
     let mut staging_buffer = Buffer::empty(
         &app.vk,
         "Staging Buffer".to_owned(),
-        max_pixels_size * 4,
+        (max_resolution.0 * max_resolution.1 * 4) as u64 * std::mem::size_of::<f32>() as u64, // todo this might not be enough to copy compaction with lots of small groups
         vk::BufferUsageFlags::TRANSFER_DST,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
     );
 
     let mut compaction_shader = load_shader_compaction_mask(&app.vk, &app.constants);
-    let mut compaction_mask_buffer = Buffer::empty(
+    let mut compaction_buffer = Buffer::empty(
         &app.vk,
         "Compaction Mask".to_owned(),
-        max_pixels_size / 32,
-        vk::BufferUsageFlags::TRANSFER_DST
-            | vk::BufferUsageFlags::STORAGE_BUFFER
-            | vk::BufferUsageFlags::TRANSFER_SRC
-            | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
-        vk::MemoryPropertyFlags::DEVICE_LOCAL,
-    );
-    let mut compaction_prefix_buffer = Buffer::empty(
-        &app.vk,
-        "Compaction Prefix".to_owned(),
-        max_pixels_size / 32,
+        (total_pixel_count as u64 / 32) as u64 * std::mem::size_of::<u32>() as u64 * 2,
         vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::TRANSFER_SRC
@@ -890,13 +880,8 @@ fn render_lightmaps3(app: &mut Stilb) {
         &app.vk,
         &compaction_shader,
         visibility_expanded.view(),
-        compaction_mask_buffer.buffer,
-        compaction_prefix_buffer.buffer,
+        compaction_buffer.buffer,
     );
-
-    let mut mask_temp: Vec<u32> = vec![0; (max_pixel_count / 32) as usize];
-    let mut visible_pixels: Vec<u32> = Vec::with_capacity(total_pixel_count as usize);
-    let mut visible_pixels_group_start: Vec<u32> = Vec::with_capacity(app.groups.len());
 
     let visibility_clear = [vk::ClearValue {
         color: vk::ClearColorValue {
@@ -904,9 +889,12 @@ fn render_lightmaps3(app: &mut Stilb) {
         },
     }];
 
+    // let mut compact_groups_start: Vec<u32> = vec![0; app.groups.len()];
+
+    let mut expanded_groups_start = vec![0; app.groups.len()];
+    let mut expanded_group_offset = 0;
     for group_index in 0..app.groups.len() {
         let group = &app.groups[group_index].settings;
-        let current_pixel_count = (group.width * group.height) as usize;
 
         let mut render_pass_begin = vk::RenderPassBeginInfo {
             render_pass: visibility_shader.render_pass,
@@ -935,7 +923,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         let compaction_push = CompactionPushConstants {
             width: group.width,
             height: group.height,
-            offset: 0,
+            offset: expanded_group_offset / 32,
             pad1: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
@@ -971,34 +959,6 @@ fn render_lightmaps3(app: &mut Stilb) {
             // AttachmentDescription final_layout: vk::ImageLayout::GENERAL
             visibility_expanded.set_layout(vk::ImageLayout::GENERAL);
 
-            let current_buffer_size =
-                (current_pixel_count * std::mem::size_of::<u32>() / 32) as u64;
-
-            vk.cmd_fill_buffer(
-                cmd,
-                compaction_mask_buffer.buffer,
-                0,
-                current_buffer_size,
-                0,
-            );
-            let clear_barrier = vk::BufferMemoryBarrier::default()
-                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                .dst_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
-                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                .buffer(compaction_mask_buffer.buffer)
-                .offset(0)
-                .size(current_buffer_size);
-            vk.cmd_pipeline_barrier(
-                cmd,
-                vk::PipelineStageFlags::TRANSFER,
-                vk::PipelineStageFlags::COMPUTE_SHADER,
-                vk::DependencyFlags::empty(),
-                &[],
-                &[clear_barrier],
-                &[],
-            );
-
             // compaction
             vk.cmd_bind_pipeline(
                 cmd,
@@ -1024,101 +984,119 @@ fn render_lightmaps3(app: &mut Stilb) {
             let groups_y = 1;
             vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
 
-            let barrier = vk::BufferMemoryBarrier::default()
-                .src_access_mask(vk::AccessFlags::SHADER_WRITE)
-                .dst_access_mask(vk::AccessFlags::TRANSFER_READ)
-                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                .buffer(compaction_mask_buffer.buffer)
-                .offset(0)
-                .size(vk::WHOLE_SIZE);
-            vk.cmd_pipeline_barrier(
-                cmd,
-                vk::PipelineStageFlags::COMPUTE_SHADER,
-                vk::PipelineStageFlags::TRANSFER,
-                vk::DependencyFlags::empty(),
-                &[],
-                &[barrier],
-                &[],
-            );
+            // let barrier = vk::BufferMemoryBarrier::default()
+            //     .src_access_mask(vk::AccessFlags::SHADER_WRITE)
+            //     .dst_access_mask(vk::AccessFlags::TRANSFER_READ)
+            //     .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            //     .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            //     .buffer(compaction_buffer.buffer)
+            //     .offset(0)
+            //     .size(vk::WHOLE_SIZE);
+            // vk.cmd_pipeline_barrier(
+            //     cmd,
+            //     vk::PipelineStageFlags::COMPUTE_SHADER,
+            //     vk::PipelineStageFlags::TRANSFER,
+            //     vk::DependencyFlags::empty(),
+            //     &[],
+            //     &[barrier],
+            //     &[],
+            // );
 
-            let regions = vk::BufferCopy {
-                src_offset: 0,
-                dst_offset: 0,
-                size: current_buffer_size,
-            };
-            vk.cmd_copy_buffer(
-                cmd,
-                compaction_mask_buffer.buffer,
-                staging_buffer.buffer,
-                &[regions],
-            );
+            // let regions = vk::BufferCopy {
+            //     src_offset: 0,
+            //     dst_offset: 0,
+            //     size: current_buffer_size,
+            // };
+            // vk.cmd_copy_buffer(
+            //     cmd,
+            //     compaction_buffer.buffer,
+            //     staging_buffer.buffer,
+            //     &[regions],
+            // );
 
             app.vk.end_single_use_cmd(cmd);
 
-            std::ptr::copy_nonoverlapping(
-                staging_buffer.ptr as *const u8,
-                mask_temp.as_mut_ptr() as *mut u8,
-                regions.size as usize,
-            );
+            // std::ptr::copy_nonoverlapping(
+            //     staging_buffer.ptr as *const u8,
+            //     mask_temp.as_mut_ptr() as *mut u8,
+            //     regions.size as usize,
+            // );
         };
 
-        const DEBUG_COMPACTION_MASK: bool = true;
+        expanded_groups_start[group_index] = expanded_group_offset as usize;
+        expanded_group_offset += group.width * group.height;
+    }
+
+    let cmd = app.vk.begin_single_use_cmd();
+    let regions = vk::BufferCopy {
+        src_offset: 0,
+        dst_offset: 0,
+        size: compaction_buffer.bytes,
+    };
+    unsafe {
+        app.vk.device.cmd_copy_buffer(
+            cmd,
+            compaction_buffer.buffer,
+            staging_buffer.buffer,
+            &[regions],
+        )
+    };
+    app.vk.end_single_use_cmd(cmd);
+
+    let mut compaction_buffer_cpu = vec![0u32; compaction_buffer.bytes as usize / 4];
+
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            staging_buffer.ptr as *const u8,
+            compaction_buffer_cpu.as_mut_ptr() as *mut u8,
+            regions.size as usize,
+        )
+    };
+
+    const DEBUG_COMPACTION_MASK: bool = true;
+    if DEBUG_COMPACTION_MASK {
         let mut debug_pixels: Vec<f32> = Vec::new();
 
-        visible_pixels_group_start.push(visible_pixels.len() as u32);
+        for group_index in 0..app.groups.len() {
+            let group_start = expanded_groups_start[group_index];
+            let group = &app.groups[group_index].settings;
 
-        for i in 0..current_pixel_count {
-            let word = i / 32;
-            let bit = i % 32;
+            let pixel_count = (group.width * group.height) as usize;
 
-            let visible = (mask_temp[word] & (1u32 << bit)) != 0;
+            for i in 0..pixel_count {
+                let word = i / 32;
 
-            if visible {
-                visible_pixels.push(i as u32);
-            }
+                let mask = compaction_buffer_cpu[group_start + word * 2];
+                let visible = (mask & (1 << (i & 31))) != 0;
 
-            if DEBUG_COMPACTION_MASK {
                 let value = if visible { 1.0 } else { 0.0 };
                 debug_pixels.push(value);
                 debug_pixels.push(value);
                 debug_pixels.push(value);
                 debug_pixels.push(1.0);
             }
-        }
 
-        if DEBUG_COMPACTION_MASK {
-            let readback_data = LightmapReadbackData {
-                group_index: group_index as u32,
-                ty: 0,
-                pixels: debug_pixels.as_ptr(),
-                pixels_count: debug_pixels.len() as u32,
-                width: group.width,
-                height: group.height,
-            };
-            (app.config.lightmap_read_callback)(readback_data);
+            if DEBUG_COMPACTION_MASK {
+                let readback_data = LightmapReadbackData {
+                    group_index: group_index as u32,
+                    ty: 0,
+                    pixels: debug_pixels.as_ptr(),
+                    pixels_count: debug_pixels.len() as u32,
+                    width: group.width,
+                    height: group.height,
+                };
+                (app.config.lightmap_read_callback)(readback_data);
+            }
         }
     }
 
     compaction_shader.destroy(&app.vk);
-    compaction_mask_buffer.destroy(&app.vk);
-    compaction_prefix_buffer.destroy(&app.vk);
+    compaction_buffer.destroy(&app.vk);
 
     visibility_shader.destroy(&app.vk);
     visibility_expanded.destroy(&app.vk);
 
     staging_buffer.destroy(&app.vk);
-
-    // let readback_data = LightmapReadbackData {
-    //     group_index: group_index as u32,
-    //     ty: 0,
-    //     pixels: pixels.as_ptr(),
-    //     pixels_count: pixels.len() as u32,
-    //     width: group.width,
-    //     height: group.height,
-    // };
-
-    // (app.config.lightmap_read_callback)(readback_data);
 }
 
 // fn render_lightmaps(app: &mut Stilb) {
