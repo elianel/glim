@@ -1044,21 +1044,9 @@ fn render_lightmaps3(app: &mut Stilb) {
                 let offset = compaction_buffer_cpu[group_start + word * 2 + 1];
 
                 let active = (mask & (1 << bit)) != 0;
-                let mut rank = 0;
+
                 let r = if active {
-                    let mut temp = mask;
-
-                    while temp != 0 {
-                        let next_bit = temp.trailing_zeros();
-
-                        if next_bit == bit as u32 {
-                            break;
-                        }
-
-                        rank += 1;
-                        temp &= temp - 1;
-                    }
-
+                    let rank = mask & ((1u32 << bit) - 1).count_ones();
                     let compact_index = offset + rank;
 
                     (compact_index % 32) as f32 / 32.0
