@@ -1051,7 +1051,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         compacted_pixels_count += prefix_sum;
 
         if DEBUG_COMPACTION {
-            let mut debug_pixels: Vec<f32> = Vec::new();
+            let mut debug_pixels = vec![0.0; pixel_count * 4];
 
             for i in 0..pixel_count {
                 let word = i / 32;
@@ -1062,7 +1062,7 @@ fn render_lightmaps3(app: &mut Stilb) {
 
                 let active = (mask & (1 << bit)) != 0;
 
-                let r = if active {
+                let order = if active {
                     let rank = (mask & ((1u32 << bit) - 1)).count_ones();
                     let compact_index = offset + rank;
 
@@ -1070,12 +1070,17 @@ fn render_lightmaps3(app: &mut Stilb) {
                 } else {
                     0.0
                 };
-                let g = if active { 1.0 } else { 0.0 };
+                let visible = if active { 1.0 } else { 0.0 };
 
-                debug_pixels.push(r);
-                debug_pixels.push(g);
-                debug_pixels.push(0.0);
-                debug_pixels.push(1.0);
+                let (x, y) = index_to_uv(i as u32);
+
+                let pixel = (y * group.width + x) as usize;
+                let dst = pixel * 4;
+
+                debug_pixels[dst + 0] = order;
+                debug_pixels[dst + 1] = order;
+                debug_pixels[dst + 2] = order;
+                debug_pixels[dst + 3] = visible;
             }
 
             let readback_data = LightmapReadbackData {
@@ -1105,6 +1110,21 @@ fn render_lightmaps3(app: &mut Stilb) {
     staging_buffer.destroy(&app.vk);
 }
 
+fn deinterleave_with_zero(mut word: u32) -> u32 {
+    word &= 0x5555_5555;
+    word = (word | (word >> 1)) & 0x3333_3333;
+    word = (word | (word >> 2)) & 0x0f0f_0f0f;
+    word = (word | (word >> 4)) & 0x00ff_00ff;
+    word = (word | (word >> 8)) & 0x0000_ffff;
+    word
+}
+
+fn index_to_uv(index: u32) -> (u32, u32) {
+    (
+        deinterleave_with_zero(index),
+        deinterleave_with_zero(index >> 1),
+    )
+}
 // fn render_lightmaps(app: &mut Stilb) {
 //     let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
 //     let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
