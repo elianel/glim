@@ -113,3 +113,27 @@ uint hash_uint2(const uint kx, const uint ky)
 
     return c;
 }
+
+uint InterleaveWithZero(uint word)
+{
+    word = (word ^ (word << 8)) & 0x00ff00ff;
+    word = (word ^ (word << 4)) & 0x0f0f0f0f;
+    word = (word ^ (word << 2)) & 0x33333333;
+    word = (word ^ (word << 1)) & 0x55555555;
+    return word;
+}
+
+uint DeinterleaveWithZero(uint word)
+{
+    word &= 0x55555555;
+    word = (word | (word >> 1)) & 0x33333333;
+    word = (word | (word >> 2)) & 0x0f0f0f0f;
+    word = (word | (word >> 4)) & 0x00ff00ff;
+    word = (word | (word >> 8)) & 0x0000ffff;
+    return word;
+}
+
+uint2 IndexToUV(uint index)
+{
+    return uint2(DeinterleaveWithZero(index), DeinterleaveWithZero(index >> 1));
+}

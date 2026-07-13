@@ -36,6 +36,20 @@ EncodeVisibilityBuffer(float2 bary, uint primitiveID, bool isVisible, bool useSm
     return float4(bary, asfloat(primitiveID), asfloat(encoded));
 }
 
+uint PackCoords(uint2 coords)
+{
+    coords &= 0xFFFF;
+    return coords.x | (coords.y << 16);
+}
+
+uint2 UnpackCoords(uint v)
+{
+    uint2 coords;
+    coords.x = v & 0xFFFF;
+    coords.y = (v >> 16) & 0xFFFF;
+    return coords;
+}
+
 void QueryHandleAlpha<let T : uint>(inout RayQuery<T> query)
 {
     if (query.CandidateType() != CANDIDATE_NON_OPAQUE_TRIANGLE)

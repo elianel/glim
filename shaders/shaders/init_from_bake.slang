@@ -7,24 +7,21 @@ struct PushConstants
 {
     uint2 resolution;
     uint groupIndex;
-    uint maskOnly;
+    uint pad0;
 
     uint2 rtResolution;
-    uint2 pad;
+    uint2 pad1;
 };
 
 struct Varyings
 {
     float4 positionCS : SV_Position;
-    nointerpolation uint primitiveID : TEXCOORD1;
-    float2 bary : TEXCOORD2;
+    nointerpolation uint primitiveID : TEXCOORD2;
 };
 
 [shader("vertex")] Varyings vertex(uint vertexID : SV_VulkanVertexID)
 {
     Varyings o;
-
-    static const float2 barys[3] = {float2(0, 0), float2(1, 0), float2(0, 1)};
 
     uint primitiveID = vertexID / 3;
     uint index = vertexID % 3;
@@ -34,9 +31,8 @@ struct Varyings
 
     if (v.GetLightmapGroup() != Push.groupIndex)
     {
-        o.positionCS = -1;
-        o.primitiveID = 0;
-        o.bary = 0;
+        o.positionCS = asfloat(-1);
+        o.primitiveID = uint::maxValue;
     }
     else
     {
@@ -51,7 +47,6 @@ struct Varyings
 
         o.positionCS = float4(uv * 2.0 - 1.0, 0.0, 1.0);
         o.primitiveID = primitiveID;
-        o.bary = barys[index];
     }
 
     return o;
@@ -60,17 +55,5 @@ struct Varyings
     [shader("fragment")] uint2 fragment(Varyings varyings)
     : SV_Target
 {
-
-    if (Push.maskOnly > 0)
-    {
-        return 1;
-    }
-
-    uint primitiveID = varyings.primitiveID;
-    float2 bary = varyings.bary;
-
-    // todo encode bary
-    return uint2(primitiveID, 0);
-
-    // return float4(asfloat(primitiveID), bary, 1);
+    return uint2(varyings.primitiveID, 0);
 }
