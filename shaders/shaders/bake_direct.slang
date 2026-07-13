@@ -64,7 +64,11 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
 
     Surface surface = Surface::Get(primitiveID, bary, true);
 
-    CompactedDiffuse[index] = surface.Ng;
+    uint offset = index * 3;
+
+    CompactedDiffuse[offset + 0] = 1;
+    CompactedDiffuse[offset + 1] = 1;
+    CompactedDiffuse[offset + 2] = 1;
 
     // float3 positionWS = visibility.xyz;
     // float3 normalWS = UnpackNormalOctahedron(visibility.w);

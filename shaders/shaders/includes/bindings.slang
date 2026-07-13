@@ -63,7 +63,7 @@ RWStructuredBuffer<uint2> CompactedVisibility;
 RWStructuredBuffer<float4> DecompactTarget;
 
 [[vk::binding(18, 0)]]
-RWStructuredBuffer<float3> CompactedDiffuse;
+RWStructuredBuffer<float> CompactedDiffuse;
 
 [vk::constant_id(0)] const uint USE_CAMERA;
 [vk::constant_id(1)] const uint LIGHT_FALLOFF_TYPE;

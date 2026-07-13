@@ -39,7 +39,12 @@ struct PushConstants
     uint rank = countbits(entry.x & ((1u << bit) - 1));
     uint compactIndex = entry.y + rank;
 
-    float3 diffuse = CompactedDiffuse[linearIndex];
+    uint src = compactIndex * 3;
+
+    float3 diffuse = float3(
+        CompactedDiffuse[src + 0],
+        CompactedDiffuse[src + 1],
+        CompactedDiffuse[src + 2]);
 
     DecompactTarget[linearIndex] = float4(diffuse, 1.0);
 }
