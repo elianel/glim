@@ -37,7 +37,9 @@ main(uint3 threadID : SV_DispatchThreadID)
         uint compactIndex = entry.y + rank;
 
         uint primitiveID = VisibilityBuffer[coords].x; // todo can even store just triangle id since coords exist here
-        uint2 visibility = uint2(primitiveID, PackCoords(coords));
+        uint2 uv = coords;
+        uv.y = Push.resolution.y - uv.y;
+        uint2 visibility = uint2(primitiveID, PackCoords(uv));
 
         CompactedVisibility[compactIndex] = visibility;
     }

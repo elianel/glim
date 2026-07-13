@@ -59,78 +59,79 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
 
     uint2 visibility = CompactedVisibility[index];
     uint primitiveID = visibility.x;
-    float2 uv = float2(UnpackCoords(visibility.y)) + 0.5;
+    uint2 originalCoords = UnpackCoords(visibility.y);
+    float2 uv = float2(originalCoords) + 0.5;
     float2 bary = BaryFromUV(primitiveID, uv);
 
     Surface surface = Surface::Get(primitiveID, bary, true);
-
-    uint offset = index * 3;
-
-    CompactedDiffuse[offset + 0] = surface.N.x * 0.5 + 0.5;
-    CompactedDiffuse[offset + 1] = surface.N.y * 0.5 + 0.5;
-    CompactedDiffuse[offset + 2] = surface.N.z * 0.5 + 0.5;
 
     // CompactedDiffuse[offset + 0] = bary.x;
     // CompactedDiffuse[offset + 1] = bary.y;
     // CompactedDiffuse[offset + 2] = 1 - bary.x - bary.y;
 
-    // float3 positionWS = visibility.xyz;
-    // float3 normalWS = UnpackNormalOctahedron(visibility.w);
+    float3 positionWS = surface.P;
+    float3 normalWS = surface.N;
 
-    // uint sampleIndex = Push.sampleIndex;
-    // uint sampleCount = Push.maxSamples;
-    // uint lightCount = Push.lightCount;
+    uint sampleIndex = Push.sampleIndex;
+    uint sampleCount = Push.maxSamples;
+    uint lightCount = Push.lightCount;
 
-    // SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
-    // uint pixelSeed = RNGPixelInit(coords, pattern);
-    // uint sobolIndexMask = ~0u;
-    // uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
+    SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
+    uint pixelSeed = RNGPixelInit(originalCoords, pattern);
+    uint sobolIndexMask = ~0u;
+    uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
 
-    // float2 xiLight = SobolBurleySample2D(indexing.x, 0, indexing.y, indexing.z);
+    float2 xiLight = SobolBurleySample2D(indexing.x, 0, indexing.y, indexing.z);
 
-    // float4 color = float4(0.0, 0.0, 0.0, 1.0);
-    // float3 throughput = float3(1.0);
-    // float4 dominantDirection = 0.0;
+    float4 color = float4(0.0, 0.0, 0.0, 1.0);
+    float3 throughput = float3(1.0);
+    float4 dominantDirection = 0.0;
 
-    // for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
-    // {
-    //     float3 L;
-    //     float3 current = ShadeLightDirect(Lights[lightIndex], positionWS, normalWS, xiLight, throughput, L);
-    //     color.rgb += current;
-    //     dominantDirection.xyz += L * Luminance(current);
-    // }
+    for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
+    {
+        float3 L;
+        float3 current = ShadeLightDirect(Lights[lightIndex], positionWS, normalWS, xiLight, throughput, L);
+        color.rgb += current;
+        dominantDirection.xyz += L * Luminance(current);
+    }
 
-    // float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
+    float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
 
-    // Ray ray;
-    // ray.P = positionWS;
-    // ray.D = RandomDirectionInHemisphere(normalWS, xiBounce);
-    // ray.tMin = 0;
-    // ray.tMax = RAY_MAX;
+    Ray ray;
+    ray.P = RayOffset(surface.P, surface.Ng);
+    ray.D = RandomDirectionInHemisphere(surface.N, xiBounce);
+    ray.tMin = 0;
+    ray.tMax = RAY_MAX;
 
-    // Hit bounceHit;
-    // if (TraceRay(ray, bounceHit))
-    // {
-    //     Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
+    Hit bounceHit;
+    if (TraceRay(ray, bounceHit))
+    {
+        Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
 
-    //     if (!bounceHit.frontFace)
-    //     {
-    //         if (!surface.backfaceGI)
-    //         {
-    //             color.a = 0;
-    //         }
-    //     }
+        if (!bounceHit.frontFace)
+        {
+            if (!surface.backfaceGI)
+            {
+                color.a = 0;
+            }
+        }
 
-    //     float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-    //     float3 current = bounceEmission * color.a;
-    //     color.rgb += bounceEmission * color.a;
-    //     dominantDirection.xyz += ray.D * Luminance(current);
-    // }
+        float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
+        float3 current = bounceEmission * color.a;
+        color.rgb += bounceEmission * color.a;
+        dominantDirection.xyz += ray.D * Luminance(current);
+    }
 
-    // float4 previous = LightmapDiffuse[coords];
-    // color.a = 1.0;
-    // AccumulateColor(previous, sampleIndex, color);
-    // LightmapDiffuse[coords] = previous;
+    float4 previous = float4(
+        CompactedDiffuse[index * 3 + 0],
+        CompactedDiffuse[index * 3 + 1],
+        CompactedDiffuse[index * 3 + 2],
+        1.0);
+
+    AccumulateColor(previous, sampleIndex, color);
+    CompactedDiffuse[index * 3 + 0] = previous.x;
+    CompactedDiffuse[index * 3 + 1] = previous.y;
+    CompactedDiffuse[index * 3 + 2] = previous.z;
 
     // uint index = (coords.x + coords.y * resolution.x) * 4;
     // dominantDirection.z = -dominantDirection.z; // unity coords
