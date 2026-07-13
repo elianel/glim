@@ -52,8 +52,8 @@ mod tests {
             light_falloff: LightFalloffType::InverseSquare,
             vulkan_validation_layers: true,
             seams_debug: false,
-            direct_samples: 256,
-            indirect_samples: 64,
+            direct_samples: 512,
+            indirect_samples: 256,
             bounce_count: 5,
             log_callback: log_callback,
             mis: false,
@@ -155,8 +155,32 @@ mod tests {
         //         range: 5.0,
         //         color: Vector3::new(1.0, 1.0, 1.0),
         //         shadow_radius_or_angle: 0.0,
+        //         spot_inner_percent: 0.0,
+        //         spot_outer: 0.0,
+        //         pad0: 0,
+        //         pad1: 0,
         //     },
         // );
+
+        app_add_light(
+            app,
+            Light {
+                ty: LightType::Point,
+                position: Vector3 {
+                    x: 1.5,
+                    y: 0.3,
+                    z: -1.5,
+                },
+                direction: Vector3::ZERO,
+                range: 5.0,
+                color: Vector3::new(1.0, 1.0, 1.0),
+                shadow_radius_or_angle: 0.1,
+                spot_inner_percent: 0.0,
+                spot_outer: 0.0,
+                pad0: 0,
+                pad1: 0,
+            },
+        );
 
         // app_add_light(
         //     app,

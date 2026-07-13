@@ -858,12 +858,20 @@ fn render_lightmaps3(app: &mut Stilb) {
         String::from("Visibility"),
     );
 
-    let mut visibility_shader =
+    let mut visibility_shader_conservative =
         load_visibility_shader(&mut app.vk, &visibility_expanded, true, &app.constants);
+    let mut visibility_shader_non_conservative =
+        load_visibility_shader(&mut app.vk, &visibility_expanded, false, &app.constants);
 
     update_visibility_shader(
         &app.vk,
-        &visibility_shader,
+        &visibility_shader_conservative,
+        app.gpu_mesh.index_buffer.buffer,
+        app.gpu_mesh.vertex_buffer.buffer,
+    );
+    update_visibility_shader(
+        &app.vk,
+        &visibility_shader_non_conservative,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
     );
@@ -903,16 +911,14 @@ fn render_lightmaps3(app: &mut Stilb) {
         },
     }];
 
-    // let mut compact_groups_start: Vec<u32> = vec![0; app.groups.len()];
-
     let mut expanded_groups_start = vec![0; app.groups.len()];
     let mut expanded_group_offset = 0;
     for group_index in 0..app.groups.len() {
         let group = &app.groups[group_index].settings;
 
         let mut render_pass_begin = vk::RenderPassBeginInfo {
-            render_pass: visibility_shader.render_pass,
-            framebuffer: visibility_shader.framebuffer,
+            render_pass: visibility_shader_conservative.render_pass,
+            framebuffer: visibility_shader_conservative.framebuffer,
             render_area: vk::Rect2D {
                 offset: vk::Offset2D { x: 0, y: 0 },
                 extent: vk::Extent2D {
@@ -954,25 +960,25 @@ fn render_lightmaps3(app: &mut Stilb) {
             vk.cmd_bind_pipeline(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
-                visibility_shader.pipeline,
+                visibility_shader_conservative.pipeline,
             );
             vk.cmd_bind_descriptor_sets(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
-                visibility_shader.pipeline_layout,
+                visibility_shader_conservative.pipeline_layout,
                 0,
-                &[visibility_shader.descriptor_set],
+                &[visibility_shader_conservative.descriptor_set],
                 &[],
             );
             vk.cmd_push_constants(
                 cmd,
-                visibility_shader.pipeline_layout,
+                visibility_shader_conservative.pipeline_layout,
                 vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX,
                 0,
                 &visibility_push_bytes,
             );
-
             vk.cmd_draw(cmd, mesh.index_len * 3, 1, 0, 0);
+
             vk.cmd_end_render_pass(cmd);
             // AttachmentDescription final_layout: vk::ImageLayout::GENERAL
             visibility_expanded.set_layout(vk::ImageLayout::GENERAL);
@@ -1038,6 +1044,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     }
 
     let mut compacted_pixels_count = 0;
+    let mut compacted_groups_start: Vec<u32> = vec![0; app.groups.len()];
 
     for group_index in 0..app.groups.len() {
         let group_start = expanded_groups_start[group_index] * 2;
@@ -1053,6 +1060,8 @@ fn render_lightmaps3(app: &mut Stilb) {
             compaction_buffer_cpu[i] = prefix_sum;
             prefix_sum += bits;
         }
+
+        compacted_groups_start[group_index] = compacted_pixels_count;
 
         compacted_pixels_count += prefix_sum;
 
@@ -1158,8 +1167,8 @@ fn render_lightmaps3(app: &mut Stilb) {
         let group = &app.groups[group_index].settings;
 
         let mut render_pass_begin = vk::RenderPassBeginInfo {
-            render_pass: visibility_shader.render_pass,
-            framebuffer: visibility_shader.framebuffer,
+            render_pass: visibility_shader_conservative.render_pass,
+            framebuffer: visibility_shader_conservative.framebuffer,
             render_area: vk::Rect2D {
                 offset: vk::Offset2D { x: 0, y: 0 },
                 extent: vk::Extent2D {
@@ -1201,25 +1210,49 @@ fn render_lightmaps3(app: &mut Stilb) {
             vk.cmd_bind_pipeline(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
-                visibility_shader.pipeline,
+                visibility_shader_conservative.pipeline,
             );
             vk.cmd_bind_descriptor_sets(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
-                visibility_shader.pipeline_layout,
+                visibility_shader_conservative.pipeline_layout,
                 0,
-                &[visibility_shader.descriptor_set],
+                &[visibility_shader_conservative.descriptor_set],
                 &[],
             );
             vk.cmd_push_constants(
                 cmd,
-                visibility_shader.pipeline_layout,
+                visibility_shader_conservative.pipeline_layout,
                 vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX,
                 0,
                 &visibility_push_bytes,
             );
 
             vk.cmd_draw(cmd, mesh.index_len * 3, 1, 0, 0);
+
+            // non conservative
+            vk.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                visibility_shader_non_conservative.pipeline,
+            );
+            vk.cmd_bind_descriptor_sets(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                visibility_shader_non_conservative.pipeline_layout,
+                0,
+                &[visibility_shader_non_conservative.descriptor_set],
+                &[],
+            );
+            vk.cmd_push_constants(
+                cmd,
+                visibility_shader_non_conservative.pipeline_layout,
+                vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX,
+                0,
+                &visibility_push_bytes,
+            );
+            vk.cmd_draw(cmd, mesh.index_len * 3, 1, 0, 0);
+
             vk.cmd_end_render_pass(cmd);
             // AttachmentDescription final_layout: vk::ImageLayout::GENERAL
             visibility_expanded.set_layout(vk::ImageLayout::GENERAL);
@@ -1250,7 +1283,8 @@ fn render_lightmaps3(app: &mut Stilb) {
     }
 
     visibility_expanded.destroy(&app.vk);
-    visibility_shader.destroy(&app.vk);
+    visibility_shader_conservative.destroy(&app.vk);
+    visibility_shader_non_conservative.destroy(&app.vk);
     compact_visibility_shader.destroy(&app.vk);
 
     let mut compacted_diffuse = Buffer::empty(
@@ -1338,7 +1372,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         let compaction_push = CompactPushConstants {
             width: group.width,
             height: group.height,
-            offset: expanded_groups_start[group_index] as u32,
+            offset: compacted_groups_start[group_index] as u32,
             pad1: 0,
         };
         let decompact_push_bytes = as_bytes(&compaction_push);

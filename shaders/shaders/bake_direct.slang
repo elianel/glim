@@ -44,6 +44,15 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
     float b0 = 1.0 - b1 - b2;
 
     return float2(b1, b2);
+
+    // float2 bary = saturate(float2(b1, b2));
+    // float sum = bary.x + bary.y;
+    // if (sum > 1.0)
+    // {
+    //     bary /= sum;
+    // }
+
+    // return bary;
 }
 
 [shader("compute")]
@@ -65,11 +74,9 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
 
     Surface surface = Surface::Get(primitiveID, bary, true);
 
-    // CompactedDiffuse[offset + 0] = bary.x;
-    // CompactedDiffuse[offset + 1] = bary.y;
-    // CompactedDiffuse[offset + 2] = 1 - bary.x - bary.y;
+    // todo adjust sample positions before this shader
 
-    float3 positionWS = surface.P;
+    float3 positionWS = RayOffset(surface.P, surface.Ng);
     float3 normalWS = surface.N;
 
     uint sampleIndex = Push.sampleIndex;
@@ -98,8 +105,8 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
     float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
 
     Ray ray;
-    ray.P = RayOffset(surface.P, surface.Ng);
-    ray.D = RandomDirectionInHemisphere(surface.N, xiBounce);
+    ray.P = positionWS;
+    ray.D = RandomDirectionInHemisphere(normalWS, xiBounce);
     ray.tMin = 0;
     ray.tMax = RAY_MAX;
 
