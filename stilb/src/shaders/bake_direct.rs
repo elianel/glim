@@ -25,7 +25,7 @@ pub fn load_bake_direct_shader(
     bind_lights(&mut bindings);
     bind_emissive_triangles(&mut bindings);
     bind_compacted_visibility_buffer(&mut bindings);
-    bind_compacted_diffuse(&mut bindings);
+    bind_compacted_lightmap(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
     let data_bytes = as_bytes(constants);
@@ -59,7 +59,7 @@ pub fn update_bake_direct_shader(
     lights: vk::Buffer,
     emissive_triangles: vk::Buffer,
     compacted_visibility: vk::Buffer,
-    compacted_diffuse: vk::Buffer,
+    compacted_lightmap: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -188,9 +188,9 @@ pub fn update_bake_direct_shader(
     write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
-    // CompactedDiffuse
+    // CompactedLightmap
     let info = [vk::DescriptorBufferInfo {
-        buffer: compacted_diffuse,
+        buffer: compacted_lightmap,
         offset: 0,
         range: vk::WHOLE_SIZE,
     }];

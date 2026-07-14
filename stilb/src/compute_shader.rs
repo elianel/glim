@@ -158,7 +158,7 @@ pub struct BakeBouncePushConstants {
     pub pad2: u32,
 }
 
-pub fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 6] {
+pub fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 7] {
     let size = std::mem::size_of::<u32>();
 
     [
@@ -192,6 +192,11 @@ pub fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 6] {
             offset: 5 * size as u32,
             size,
         },
+        vk::SpecializationMapEntry {
+            constant_id: 6,
+            offset: 6 * size as u32,
+            size,
+        },
     ]
 }
 
@@ -210,6 +215,7 @@ pub struct SpecializationConstants {
     pub emissive_triangles_count: u32,
     pub multiple_importance_sampling: u32,
     pub lightmap_group_count: u32,
+    pub lightmap_mode: u32,
 }
 
 // fn create_specialization_constants(
@@ -468,7 +474,7 @@ pub fn load_bake_light_probes_shader(
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_lights(&mut bindings);
-    bind_compacted_diffuse(&mut bindings);
+    bind_compacted_lightmap(&mut bindings);
     bind_compaction_buffer(&mut bindings);
     bind_lightmap_info(&mut bindings);
 
@@ -500,7 +506,7 @@ pub fn update_bake_light_probes_shader(
     probes: vk::Buffer,
     albedos: &[vk::ImageView],
     emissions: &[vk::ImageView],
-    compacted_diffuse: vk::Buffer,
+    compacted_lightmap: vk::Buffer,
     indices: vk::Buffer,
     vertices: vk::Buffer,
     lights: vk::Buffer,
@@ -619,9 +625,9 @@ pub fn update_bake_light_probes_shader(
     write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
-    // CompactedDiffuse
+    // CompactedLightmap
     let info = [vk::DescriptorBufferInfo {
-        buffer: compacted_diffuse,
+        buffer: compacted_lightmap,
         offset: 0,
         range: vk::WHOLE_SIZE,
     }];

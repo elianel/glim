@@ -82,9 +82,9 @@ struct PushConstants
             uint compactIndex = GetCompactedIndex(surface.uv, surface.lightmapGroup);
             if (compactIndex != uint::maxValue)
             {
-                float3 lightmapDiffuse = float3(CompactedDiffuse[compactIndex * 3 + 0],
-                                                CompactedDiffuse[compactIndex * 3 + 1],
-                                                CompactedDiffuse[compactIndex * 3 + 2]);
+                float3 lightmapDiffuse = float3(CompactedLightmap[compactIndex * 3 + 0],
+                                                CompactedLightmap[compactIndex * 3 + 1],
+                                                CompactedLightmap[compactIndex * 3 + 2]);
                 AccumulateL2(probe, sampleIndex, lightmapDiffuse * bounceAlbedo * 4 * sampleScale, ray.D);
             }
         }

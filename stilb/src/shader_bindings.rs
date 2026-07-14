@@ -136,7 +136,7 @@ pub fn bind_decompact_target(bindings: &mut Vec<vk::DescriptorSetLayoutBinding<'
     });
 }
 
-pub fn bind_compacted_diffuse(bindings: &mut Vec<vk::DescriptorSetLayoutBinding<'_>>) {
+pub fn bind_compacted_lightmap(bindings: &mut Vec<vk::DescriptorSetLayoutBinding<'_>>) {
     bindings.push(vk::DescriptorSetLayoutBinding {
         binding: 18,
         descriptor_type: vk::DescriptorType::STORAGE_BUFFER,

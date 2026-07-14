@@ -79,15 +79,23 @@ struct PushConstants
     }
 
     float4 previous = float4(
-        CompactedDiffuse[index * 3 + 0],
-        CompactedDiffuse[index * 3 + 1],
-        CompactedDiffuse[index * 3 + 2],
+        CompactedLightmap[index * 3 + 0],
+        CompactedLightmap[index * 3 + 1],
+        CompactedLightmap[index * 3 + 2],
         1.0);
 
     AccumulateColor(previous, sampleIndex, color);
-    CompactedDiffuse[index * 3 + 0] = previous.x;
-    CompactedDiffuse[index * 3 + 1] = previous.y;
-    CompactedDiffuse[index * 3 + 2] = previous.z;
+    CompactedLightmap[index * 3 + 0] = previous.x;
+    CompactedLightmap[index * 3 + 1] = previous.y;
+    CompactedLightmap[index * 3 + 2] = previous.z;
+
+    if (LIGHTMAP_MODE == LightmapMode::Directional)
+    {
+        uint index = index + Push.compactedCount;
+        CompactedLightmap[index * 3 + 0] += dominantDirection.x;
+        CompactedLightmap[index * 3 + 1] += dominantDirection.y;
+        CompactedLightmap[index * 3 + 2] += dominantDirection.z;
+    }
 
     // uint index = (coords.x + coords.y * resolution.x) * 4;
     // dominantDirection.z = -dominantDirection.z; // unity coords

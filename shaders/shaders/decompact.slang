@@ -8,7 +8,7 @@ struct PushConstants
 {
     uint2 resolution;
     uint offset;
-    uint pad0;
+    uint compactedCount;
 };
 
 [numthreads(8, 8, 1)] void main(uint3 threadID : SV_DispatchThreadID)
@@ -39,12 +39,23 @@ struct PushConstants
     uint rank = countbits(entry.x & ((1u << bit) - 1));
     uint compactIndex = entry.y + rank;
 
-    uint src = (compactIndex) * 3;
-
     float3 diffuse = float3(
-        CompactedDiffuse[src + 0],
-        CompactedDiffuse[src + 1],
-        CompactedDiffuse[src + 2]);
+        CompactedLightmap[compactIndex * 3 + 0],
+        CompactedLightmap[compactIndex * 3 + 1],
+        CompactedLightmap[compactIndex * 3 + 2]);
 
     DecompactTarget[linearIndex] = float4(diffuse, 1.0);
+
+    if (LIGHTMAP_MODE == LightmapMode::Directional)
+    {
+        uint compactIndex = compactIndex + Push.compactedCount;
+        float luminance = Luminance(diffuse);
+
+        float3 directional = float3(
+            CompactedLightmap[compactIndex * 3 + 0],
+            CompactedLightmap[compactIndex * 3 + 1],
+            CompactedLightmap[compactIndex * 3 + 2]);
+
+        DecompactTarget[linearIndex] = float4(directional, 1.0);
+    }
 }

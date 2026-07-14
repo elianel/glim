@@ -247,13 +247,16 @@ fn initialize_render(app: &mut Stilb) {
 
     extract_emissive_triangles(app);
 
+    let config = &app.config;
+
     app.constants = SpecializationConstants {
         use_camera: 0,
-        light_falloff_type: app.config.light_falloff as u32,
+        light_falloff_type: config.light_falloff as u32,
         transparent_primitive_offset: (app.opaque_mesh.indices.len() / 3) as u32,
         emissive_triangles_count: app.emissive_triangles.len() as u32,
-        multiple_importance_sampling: app.config.mis as u32,
+        multiple_importance_sampling: config.mis as u32,
         lightmap_group_count: app.groups.len() as u32,
+        lightmap_mode: config.lightmap_mode as u32,
     };
 
     app.preview_shader = load_preview_shader(&app.vk, &app.constants);
@@ -1204,6 +1207,7 @@ impl Stilb {
             emissive_triangles_count: 0,
             multiple_importance_sampling: 0,
             lightmap_group_count: 0,
+            lightmap_mode: 0,
         };
 
         Self {
@@ -1341,7 +1345,7 @@ fn render_lightmaps3(app: &mut Stilb) {
             width: group.width,
             height: group.height,
             offset: expanded_group_offset,
-            pad0: 0,
+            compacted_count: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
 
@@ -1594,7 +1598,7 @@ fn render_lightmaps3(app: &mut Stilb) {
             width: group.width,
             height: group.height,
             offset: expanded_groups_start[group_index] as u32,
-            pad0: 0,
+            compacted_count: compacted_pixels_count,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
 
@@ -1754,7 +1758,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     let mut compacted_lightmap = Buffer::empty(
         &app.vk,
         "Diffuse Buffer".to_owned(),
-        compacted_pixels_count as u64 * (std::mem::size_of::<f32>() * 3) as u64,
+        compacted_pixels_count as u64 * (std::mem::size_of::<f32>() * lightmap_channels) as u64,
         vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::TRANSFER_SRC
@@ -1900,7 +1904,7 @@ fn render_lightmaps3(app: &mut Stilb) {
             width: group.width,
             height: group.height,
             offset: expanded_groups_start[group_index] as u32,
-            pad0: 0,
+            compacted_count: compacted_pixels_count,
         };
         let decompact_push_bytes = as_bytes(&compaction_push);
 

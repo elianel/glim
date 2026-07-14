@@ -44,7 +44,7 @@ pub struct StilbConfig {
 }
 
 #[repr(u32)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum LightmapMode {
     NonDirectional = 0,
     Directional = 1,

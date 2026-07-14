@@ -65,7 +65,7 @@ RWStructuredBuffer<float4> CompactedVisibility;
 RWStructuredBuffer<float4> DecompactTarget;
 
 [[vk::binding(18, 0)]]
-RWStructuredBuffer<float> CompactedDiffuse;
+RWStructuredBuffer<float> CompactedLightmap;
 
 struct LightmapInfo
 {
@@ -85,8 +85,16 @@ struct LightmapInfo
 [vk::constant_id(3)] const uint EMISSIVE_TRIANGLES_COUNT;
 [vk::constant_id(4)] const uint MULTIPLE_IMPORTANCE_SAMPLING;
 [vk::constant_id(5)] const uint LIGHTMAP_GROUP_COUNT;
+[vk::constant_id(6)] const uint LIGHTMAP_MODE;
 
-float4 SampleAlbedo(float2 uv, uint lightmapGroup)
+enum LightmapMode : uint
+{
+    NonDirectional = 0,
+    Directional = 1,
+}
+
+float4
+SampleAlbedo(float2 uv, uint lightmapGroup)
 {
     uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
     Texture2D tex = Albedo[index];
