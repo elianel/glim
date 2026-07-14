@@ -9,6 +9,11 @@ pub struct CompactionPushConstants {
     pub height: u32,
     pub offset: u32,
     pub compacted_count: u32,
+
+    pub lightmap_type: u32,
+    pub pad0: u32,
+    pub pad1: u32,
+    pub pad2: u32,
 }
 
 pub fn load_shader_compaction_mask(

@@ -1344,6 +1344,10 @@ fn render_lightmaps3(app: &mut Stilb) {
             height: group.height,
             offset: expanded_group_offset,
             compacted_count: 0,
+            lightmap_type: 0,
+            pad0: 0,
+            pad1: 0,
+            pad2: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
 
@@ -1597,6 +1601,10 @@ fn render_lightmaps3(app: &mut Stilb) {
             height: group.height,
             offset: expanded_groups_start[group_index] as u32,
             compacted_count: compacted_pixels_count,
+            lightmap_type: 0,
+            pad0: 0,
+            pad1: 0,
+            pad2: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
 
@@ -1896,7 +1904,7 @@ fn render_lightmaps3(app: &mut Stilb) {
 
     let mut dilate_shader = load_shader_dilate(&app.vk, &app.constants);
 
-    for group_index in 0..app.groups.len() {
+    let process_lightmap = |group_index: usize, lightmap_type: u32| {
         let group = &app.groups[group_index].settings;
 
         let compaction_push = CompactionPushConstants {
@@ -1904,6 +1912,10 @@ fn render_lightmaps3(app: &mut Stilb) {
             height: group.height,
             offset: expanded_groups_start[group_index] as u32,
             compacted_count: compacted_pixels_count,
+            lightmap_type: lightmap_type,
+            pad0: 0,
+            pad1: 0,
+            pad2: 0,
         };
         let decompact_push_bytes = as_bytes(&compaction_push);
 
@@ -1989,9 +2001,16 @@ fn render_lightmaps3(app: &mut Stilb) {
             if group.denoise {
                 let start_time = std::time::Instant::now();
 
+                let directional = lightmap_type == 1;
+
                 match &oidn {
                     Some(oidn) => {
-                        oidn.denoise(pixels, group.width as usize, group.height as usize, false);
+                        oidn.denoise(
+                            pixels,
+                            group.width as usize,
+                            group.height as usize,
+                            directional,
+                        );
                     }
                     None => {}
                 }
@@ -2024,7 +2043,7 @@ fn render_lightmaps3(app: &mut Stilb) {
 
             let readback_data = LightmapReadbackData {
                 group_index: group_index as u32,
-                ty: 0,
+                ty: lightmap_type,
                 pixels: pixels.as_ptr(),
                 pixels_count: pixels.len() as u32,
                 width: group.width,
@@ -2032,6 +2051,18 @@ fn render_lightmaps3(app: &mut Stilb) {
             };
             (app.config.lightmap_read_callback)(readback_data);
         };
+    };
+
+    for group_index in 0..app.groups.len() {
+        match app.config.lightmap_mode {
+            LightmapMode::NonDirectional => {
+                process_lightmap(group_index, 0);
+            }
+            LightmapMode::Directional => {
+                process_lightmap(group_index, 0);
+                process_lightmap(group_index, 1);
+            }
+        }
     }
 
     dilate_shader.destroy(&app.vk);

@@ -86,10 +86,10 @@ namespace stilb
                         previewSettings,
                         camera.transform.position,
                         camera.transform.forward,
-                        (Bindings.TextureSamplerFilter)baker.filter,
                         baker.lightProbeSamples,
                         baker.lightFalloff,
-                        baker.multipleImportanceSampling
+                        baker.multipleImportanceSampling,
+                        baker.lightmapMode
                     );
 
                     Bake.Start(baker, config);
@@ -165,10 +165,10 @@ namespace stilb
                         previewSettings,
                         Vector3.zero,
                         Vector3.zero,
-                        (Bindings.TextureSamplerFilter)baker.filter,
                         baker.lightProbeSamples,
                         baker.lightFalloff,
-                        baker.multipleImportanceSampling
+                        baker.multipleImportanceSampling,
+                        baker.lightmapMode
                     );
                     Bake.Start(baker, config);
                 };

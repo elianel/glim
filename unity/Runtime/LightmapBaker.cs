@@ -8,25 +8,23 @@ using UnityEngine.SceneManagement;
 
 namespace stilb
 {
-    public enum LightFalloffType
+    public enum LightFalloffType : uint
     {
         Auto = 0,
         InverseSquare = 1,
         UnityBuiltIn = 2,
     }
 
+    public enum LightmapMode : uint
+    {
+        NonDirectioal = 0,
+        Directional = 1,
+    }
+
     public class LightmapBaker : MonoBehaviour
     {
-
-        public enum TextureSamplerFilter : uint
-        {
-            Nearest = 0,
-            Linear = 1,
-        }
-
-        [NonSerialized] public TextureSamplerFilter filter = TextureSamplerFilter.Nearest;
-
         [Header("Bake Settings")]
+        public LightmapMode lightmapMode = LightmapMode.NonDirectioal;
         public uint directSamples = 512;
         public uint indirectSamples = 1024;
         public uint bounces = 5;

@@ -9,6 +9,11 @@ struct PushConstants
     uint2 resolution;
     uint offset;
     uint compactedCount;
+
+    uint lightmapType;
+    uint pad0;
+    uint pad1;
+    uint pad2;
 };
 
 [numthreads(8, 8, 1)] void main(uint3 threadID : SV_DispatchThreadID)
@@ -32,10 +37,13 @@ struct PushConstants
 
     if ((entry.x & (1u << bit)) == 0)
     {
-        DecompactTarget[linearIndex] = 0.0;
-        if (LIGHTMAP_MODE == LightmapMode::Directional)
+        if (Push.lightmapType == 1)
         {
             DecompactTarget[linearIndex] = 0.5;
+        }
+        else
+        {
+            DecompactTarget[linearIndex] = 0.0;
         }
         return;
     }
@@ -48,9 +56,7 @@ struct PushConstants
         CompactedLightmap[compactIndex * 3 + 1],
         CompactedLightmap[compactIndex * 3 + 2]);
 
-    DecompactTarget[linearIndex] = float4(diffuse, 1.0);
-
-    if (LIGHTMAP_MODE == LightmapMode::Directional)
+    if (Push.lightmapType == 1)
     {
         float4 visibility = CompactedVisibility[compactIndex];
         float3 normalWS = UnpackNormalOctahedron(visibility.w);
@@ -63,6 +69,7 @@ struct PushConstants
             CompactedLightmap[compactIndex * 3 + 1],
             CompactedLightmap[compactIndex * 3 + 2]);
 
+        // todo figure out what unity stores when luminance is 0
         float3 normalizedDirection = normalize(directional / (luminance + 0.0001));
 
         float alpha = saturate(dot(normalizedDirection, normalWS));
@@ -70,5 +77,9 @@ struct PushConstants
         normalizedDirection.z = -normalizedDirection.z; // unity convention
 
         DecompactTarget[linearIndex] = mad(float4(normalizedDirection, alpha), 0.5, 0.5);
+    }
+    else
+    {
+        DecompactTarget[linearIndex] = float4(diffuse, 1.0);
     }
 }

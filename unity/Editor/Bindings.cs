@@ -41,7 +41,7 @@ namespace stilb
             public readonly uint direct_samples;
             public readonly uint indirect_samples;
             public readonly uint bounce_count;
-            public readonly uint lightmap_mode;
+            public readonly LightmapMode lightmap_mode;
 
             public StilbConfig(CoordinateSystem coordinate_system,
                                uint direct_samples,
@@ -55,7 +55,7 @@ namespace stilb
                                uint probe_samples,
                                LightFalloffType falloff,
                                bool mis,
-                               uint lightmap_mode)
+                               LightmapMode lightmap_mode)
             {
                 this.coordinate_system = coordinate_system;
                 this.is_preview = is_preview;
