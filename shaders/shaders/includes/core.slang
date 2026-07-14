@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bindings.slang"
+#include "util.slang"
 
 static const float RAY_MAX = 10000.0;
 
@@ -313,6 +314,27 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
     // }
 
     // return bary;
+}
+
+// uv already multiplied with resolution
+uint GetCompactedIndex(float2 uv, uint lightmapGroup)
+{
+    uint2 coords = uint2(floor(uv + 0.5));
+    uint index = InterleaveWithZero(coords.x) | (InterleaveWithZero(coords.y) << 1);
+
+    uint word = index >> 5;
+    uint bit = index & 31;
+
+    uint2 entry = CompactionBuffer[word]; // todo offset
+
+    if ((entry.x & (1u << bit)) == 0)
+    {
+        return uint::maxValue;
+    }
+
+    uint rank = countbits(entry.x & ((1u << bit) - 1));
+    uint compactIndex = entry.y + rank;
+    return compactIndex;
 }
 
 // float MISWeight(float pdf1, float pdf2)

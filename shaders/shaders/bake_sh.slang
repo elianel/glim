@@ -57,31 +57,38 @@ struct PushConstants
         AccumulateL2(probe, sampleIndex, color * sampleScale, L);
     }
 
-    // float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
+    float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
 
-    // Ray bounceRay;
-    // bounceRay.P = probePosition;
-    // bounceRay.D = RandomDirectionSphere(xiBounce);
-    // bounceRay.tMin = 0;
-    // bounceRay.tMax = RAY_MAX;
+    Ray ray;
+    ray.P = probePosition;
+    ray.D = RandomDirectionSphere(xiBounce);
+    ray.tMin = 0;
+    ray.tMax = RAY_MAX;
 
-    // Hit bounceHit;
-    // if (TraceRay(bounceRay, bounceHit))
-    // {
-    //     Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
+    Hit hit;
+    if (TraceRay(ray, hit))
+    {
+        Surface surface = Surface::Get(hit.primitiveID, hit.bary, hit.frontFace);
 
-    //     bool backface = !bounceHit.frontFace && !surface.backfaceGI;
+        bool backface = !hit.frontFace && !surface.backfaceGI;
 
-    //     if (!backface)
-    //     {
-    //         float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-    //         AccumulateL2(probe, sampleIndex, bounceEmission.rgb * 4 * sampleScale, bounceRay.D);
+        if (!backface)
+        {
+            float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
+            AccumulateL2(probe, sampleIndex, bounceEmission.rgb * 4 * sampleScale, ray.D);
 
-    //         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-    //         float3 previousDiffuse = SamplePreviousDiffuse(surface.uv, surface.lightmapGroup).rgb;
-    //         AccumulateL2(probe, sampleIndex, previousDiffuse * bounceAlbedo * 4 * sampleScale, bounceRay.D);
-    //     }
-    // }
+            float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
+
+            uint compactIndex = GetCompactedIndex(surface.uv, surface.lightmapGroup);
+            if (compactIndex != uint::maxValue)
+            {
+                float3 lightmapDiffuse = float3(CompactedDiffuse[compactIndex * 3 + 0],
+                                                CompactedDiffuse[compactIndex * 3 + 1],
+                                                CompactedDiffuse[compactIndex * 3 + 2]);
+                AccumulateL2(probe, sampleIndex, lightmapDiffuse * bounceAlbedo * 4 * sampleScale, ray.D);
+            }
+        }
+    }
 
     SHProbes[probeIndex] = probe;
 }
