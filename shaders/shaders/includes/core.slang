@@ -321,7 +321,7 @@ uint GetCompactedIndex(float2 uv, uint lightmapGroup)
 {
     uint2 coords = uint2(floor(uv + 0.5));
     LightmapInfo info = LightmapGroups[lightmapGroup];
-    coords.y = info.resolution.y - coords.y;
+    coords.y = info.resolution.y - 1 - coords.y;
 
     uint index = InterleaveWithZero(coords.x) | (InterleaveWithZero(coords.y) << 1);
 
