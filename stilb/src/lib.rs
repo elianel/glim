@@ -2049,6 +2049,53 @@ fn render_lightmaps3(app: &mut Stilb) {
                 let groups_y = (group.height + 7) / 8;
                 vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
                 app.vk.end_single_use_cmd(cmd);
+
+                // still not quite sure what order is the best
+                if group.dilate {
+                    let start_time = std::time::Instant::now();
+
+                    let dilate_push = DilatePushConstants {
+                        width: group.width,
+                        height: group.height,
+                        pad0: 0,
+                        pad1: 0,
+                    };
+                    let dilate_push_bytes = as_bytes(&dilate_push);
+                    let groups_x = (group.width + 7) / 8;
+                    let groups_y = (group.height + 7) / 8;
+
+                    update_shader_dilate(&app.vk, &dilate_shader, staging_buffer_lightmap.buffer);
+
+                    let vk_dev = &app.vk.device;
+                    let shader = &dilate_shader;
+                    let cmd = app.vk.begin_single_use_cmd();
+                    vk_dev.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+                    vk_dev.cmd_bind_descriptor_sets(
+                        cmd,
+                        vk::PipelineBindPoint::COMPUTE,
+                        shader.pipeline_layout,
+                        0,
+                        &[shader.descriptor_set],
+                        &[],
+                    );
+                    vk_dev.cmd_push_constants(
+                        cmd,
+                        shader.pipeline_layout,
+                        vk::ShaderStageFlags::COMPUTE,
+                        0,
+                        &dilate_push_bytes,
+                    );
+                    vk_dev.cmd_dispatch(cmd, groups_x, groups_y, 1);
+                    app.vk.end_single_use_cmd(cmd);
+
+                    let elapsed = std::time::Instant::now()
+                        .duration_since(start_time)
+                        .as_secs_f32();
+                    (log)(LogMessage::message(&format!(
+                        "Dilation complete {}s",
+                        elapsed
+                    )));
+                }
             }
 
             if group.fix_seams {
