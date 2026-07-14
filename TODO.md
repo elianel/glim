@@ -41,3 +41,4 @@
 - [ ] Bake reflection probes button starts the built-in baker if the lighting is not baked which could cause confusion
 - [ ] Bakery is removing directional lightmaps
 - [ ] Double sided global illumination doesnt work?
+- [ ] Dilate or Denoise first? Dilation interferes with the denoiser, but seam sitching looks better when dilated first then denoised
