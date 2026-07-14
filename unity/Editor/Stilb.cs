@@ -109,6 +109,17 @@ namespace stilb
 
             var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
 
+            var ftraceLightmaps = rootObjects.FirstOrDefault(x => x.gameObject.name == "!ftraceLightmaps");
+            if (ftraceLightmaps != null)
+            {
+                // bakery is breaking directional lightmaps, need to remove this from scene
+                // bakery always creates this object just by having the "Render Lightmap" window open
+                // so make sure to close it and reopen the scene
+                Debug.Log("Removing Bakery !ftraceLightmap GameObject");
+                GameObject.DestroyImmediate(ftraceLightmaps.gameObject);
+                rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
+            }
+
             var lights = rootObjects.SelectMany(x => x.GetComponentsInChildren<Light>(false)).ToArray();
             var builtIn = GraphicsSettings.currentRenderPipeline == null;
 
