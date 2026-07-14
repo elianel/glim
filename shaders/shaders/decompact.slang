@@ -37,14 +37,15 @@ struct PushConstants
 
     if ((entry.x & (1u << bit)) == 0)
     {
-        if (Push.lightmapType == 1)
-        {
-            DecompactTarget[linearIndex] = 0.5;
-        }
-        else
-        {
-            DecompactTarget[linearIndex] = 0.0;
-        }
+        // if (Push.lightmapType == 1)
+        // {
+        //     DecompactTarget[linearIndex] = 0.5;
+        // }
+        // else
+        // {
+        //     DecompactTarget[linearIndex] = 0.0;
+        // }
+        DecompactTarget[linearIndex] = 0.0;
         return;
     }
 

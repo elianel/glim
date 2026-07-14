@@ -127,15 +127,15 @@ namespace stilb
 
                     if (directional)
                     {
-                        string metaPath = Path.Combine(outputFolder, $"{fileName}.png.meta");
+                        string metaPath = Path.Combine(outputFolder, $"{fileName}.tga.meta");
                         if (!File.Exists(metaPath))
                         {
                             var guid = GUID.Generate().ToString();
-                            var yaml = CreateTextureImporterMeta(guid);
+                            var yaml = CreateTextureImporterMeta(guid, true);
                             File.WriteAllText(metaPath, yaml);
                         }
-                        path = Path.Combine(outputFolder, $"{fileName}.png");
-                        var bytes = diffuseTex.EncodeToPNG();
+                        path = Path.Combine(outputFolder, $"{fileName}.tga");
+                        var bytes = diffuseTex.EncodeToTGA();
                         File.WriteAllBytes(path, bytes);
                     }
                     else
@@ -146,7 +146,7 @@ namespace stilb
                             if (!File.Exists(metaPath))
                             {
                                 var guid = GUID.Generate().ToString();
-                                var yaml = CreateTextureImporterMeta(guid);
+                                var yaml = CreateTextureImporterMeta(guid, false);
                                 File.WriteAllText(metaPath, yaml);
                             }
                             path = Path.Combine(outputFolder, $"{fileName}.exr");
@@ -522,8 +522,10 @@ namespace stilb
 
         }
 
-        public static string CreateTextureImporterMeta(string guid)
+        public static string CreateTextureImporterMeta(string guid, bool directional)
         {
+            int alphaUsage = directional ? 1 : 0;
+            int textureType = directional ? 12 : 6;
             string yaml = $@"
 fileFormatVersion: 2
 guid: {guid}
@@ -578,10 +580,10 @@ TextureImporter:
   spritePixelsToUnits: 100
   spriteBorder: {{x: 0, y: 0, z: 0, w: 0}}
   spriteGenerateFallbackPhysicsShape: 1
-  alphaUsage: 0
+  alphaUsage: {alphaUsage}
   alphaIsTransparency: 0
   spriteTessellationDetail: -1
-  textureType: 6
+  textureType: {textureType}
   textureShape: 1
   singleChannelComponent: 0
   flipbookRows: 1
