@@ -1369,8 +1369,18 @@ fn render_lightmaps3(app: &mut Stilb) {
     };
 
     let groups_x = (compacted_pixels_count + 63) / 64;
+
+    let message = format!("Baking Direct");
+
+    let mut progress = 0.0;
+    let progress_max =
+        app.config.direct_samples + app.config.indirect_samples * app.config.bounce_count;
+    let progress_scale = 1.0 / progress_max as f32;
+
     for sample_index in 0..app.config.direct_samples {
         bake_direct_push.sample_index = sample_index;
+        (log)(LogMessage::progress(&message, progress * progress_scale));
+        progress += 1.0;
 
         let vk = &app.vk.device;
         let shader = &bake_direct_shader;
@@ -1419,6 +1429,22 @@ fn render_lightmaps3(app: &mut Stilb) {
         compacted_diffuse.buffer,
     );
 
+    let oidn = Oidn::load();
+    let oidn = if oidn.is_err() {
+        let err = oidn.err();
+        match err {
+            Some(err) => {
+                let message = "Failed to load Open Image Denoise";
+                (log)(LogMessage::message(&message));
+                (log)(LogMessage::message(&err.to_string()))
+            }
+            None => {}
+        };
+        None
+    } else {
+        Some(oidn.unwrap())
+    };
+
     for group_index in 0..app.groups.len() {
         let group = &app.groups[group_index].settings;
 
@@ -1458,10 +1484,46 @@ fn render_lightmaps3(app: &mut Stilb) {
         };
 
         unsafe {
-            let pixels: &[f32] = std::slice::from_raw_parts(
-                staging_buffer_lightmap.ptr as *const f32,
+            let pixels: &mut [f32] = std::slice::from_raw_parts_mut(
+                staging_buffer_lightmap.ptr as *mut f32,
                 (group.width * group.height * 4) as usize,
             );
+
+            if group.denoise {
+                let start_time = std::time::Instant::now();
+
+                match &oidn {
+                    Some(oidn) => {
+                        oidn.denoise(pixels, group.width as usize, group.height as usize, false);
+                    }
+                    None => {}
+                }
+
+                let now = std::time::Instant::now();
+                let elapsed = now.duration_since(start_time).as_secs_f32();
+
+                let message = format!("Denoise Complete {}s", elapsed);
+                (log)(LogMessage::message(&message));
+            }
+
+            if group.fix_seams {
+                let start_time = std::time::Instant::now();
+
+                fix_seams(
+                    pixels,
+                    group.width,
+                    group.height,
+                    &app.seams,
+                    app.config.seams_debug,
+                    group_index as u32,
+                );
+
+                let now = std::time::Instant::now();
+                let elapsed = now.duration_since(start_time).as_secs_f32();
+
+                let message = format!("Seam Fix Complete {}s", elapsed);
+                (log)(LogMessage::message(&message));
+            }
 
             let readback_data = LightmapReadbackData {
                 group_index: group_index as u32,
