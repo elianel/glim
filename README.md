@@ -2,30 +2,31 @@
 
 A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
-## Notes
-
-- Currently requires a GPU with `VK_KHR_ray_query` extension, however it will support any GPU with a software BVH in the future. Check GPU support here `https://vulkan.gpuinfo.org/listdevices.php`, most modern GPUs should work.
-- While the lightmapper is fully working, it is still in early stages, theres room for improvement and it might lack some features
 
 ## Features
 
-- Works on Windows and Linux (Nvidia and AMD GPUs)
+- Supports Windows and Linux (Nvidia and AMD GPUs)
 - Fast hardware accelerated ray-tracing (can utilize RTX)
+- Easy to use (aims to be mostly a drop in replacement)
 - Realtime Preview
-- Open Image Denoise 2
 - Seam stiching with a least squares solver
 - UV Packing with hole filling
+- Open Image Denoise 2
 - Light Probe baking (L2 Spherical Harmonics)
 - Light Volumes
 - Physically correct
 - Lightmap Groups
-- Easy to use (aims to be mostly a drop in replacement)
+- Directional Lightmaps
 - Small binary size (only ~1MB)
 - Emissive materials, Directional, Spot and Point Lights
-- Shadow radius
 - Fully standalone, with Unity URP and Built-In pipeline support
 
 ## How to use
+
+## Notes
+
+- Currently requires a GPU with `VK_KHR_ray_query` extension, however it will support any GPU with a software BVH in the future. Check GPU support here `https://vulkan.gpuinfo.org/listdevices.php`, most modern GPUs should work.
+- While the lightmapper is fully working, it is still in early stages, theres room for improvement and it might lack some features
 
 ### Denoiser Setup
 
@@ -53,8 +54,8 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 #### Lightmap Groups
 
  - By default one lightmap texture is baked containing the entire scene
- - To create multiple lightmaps add a Lightmap Group component to a game object
- - Create Lightmap Group asset and assign it to the component
+ - To create multiple lightmaps add a `Lightmap Group Selector` component to a game object
+ - Right click, `Create > Lightmap Group (Glim)` asset and assign it to the selector component
  - All the child game objects will be packed into that group
 
 ## Stack
@@ -64,5 +65,5 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
 ## Building
 
-- Add the [slang](https://github.com/shader-slang/slang) compiler at PATH
+- Add the [slang](https://github.com/shader-slang/slang) shader compiler at PATH
 - `cargo build --release`

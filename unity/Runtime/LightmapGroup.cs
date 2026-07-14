@@ -28,7 +28,7 @@ namespace glim
         _8192 = 8192
     }
 
-    [CreateAssetMenu]
+    [CreateAssetMenu(menuName = "Lightmap Group (Glim)")]
     public class LightmapGroup : ScriptableObject
     {
         public Resolution resolution = Resolution._2048;
