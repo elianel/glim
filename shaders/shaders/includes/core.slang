@@ -320,12 +320,14 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
 uint GetCompactedIndex(float2 uv, uint lightmapGroup)
 {
     uint2 coords = uint2(floor(uv + 0.5));
+    LightmapInfo info = LightmapGroups[lightmapGroup];
+    coords.y = info.resolution.y - coords.y;
+
     uint index = InterleaveWithZero(coords.x) | (InterleaveWithZero(coords.y) << 1);
 
     uint word = index >> 5;
     uint bit = index & 31;
 
-    LightmapInfo info = LightmapGroups[lightmapGroup];
     uint2 entry = CompactionBuffer[info.compactionOffset + word];
 
     if ((entry.x & (1u << bit)) == 0)
