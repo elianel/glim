@@ -12,7 +12,7 @@ use crate::buffer::Buffer;
 use crate::compute_shader::*;
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
-use crate::seams::{Seam, fix_seams};
+use crate::seams::{Seam, dilate, fix_seams};
 use crate::sh::SHProbeL2;
 use crate::shaders::bake_direct::{
     BakeDirectPushConstants, load_bake_direct_shader, update_bake_direct_shader,
@@ -2058,6 +2058,8 @@ fn render_lightmaps3(app: &mut Glim) {
                 (log)(LogMessage::message(&message));
             }
 
+            dilate(pixels, group.width, group.height, 0.0);
+
             let readback_data = LightmapReadbackData {
                 group_index: group_index as u32,
                 ty: lightmap_type,
@@ -2145,16 +2147,6 @@ fn render_lightmaps3(app: &mut Glim) {
             };
             app.vk.end_single_use_cmd(cmd);
         }
-
-        // println!("Probes:\n{:#?}", &app.probes);
-        // app.vk
-        //     .download_buffer(app.probes_buffer.buffer, &mut app.probes);
-
-        // std::ptr::copy_nonoverlapping(
-        //     compaction_buffer_cpu.as_ptr() as *const u8,
-        //     staging_buffer_compaction.ptr as *mut u8,
-        //     compaction_buffer.bytes as usize,
-        // );
 
         let mut staging_buffer_light_probes = Buffer::empty(
             &app.vk,

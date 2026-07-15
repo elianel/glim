@@ -230,83 +230,113 @@ pub fn find_seams(
     seams
 }
 
-// pub fn inpaint(
-//     pixels: &mut [f32],
-//     width: u32,
-//     height: u32,
-//     alpha_threshold: f32,
-//     iterations: usize,
-// ) {
-//     let w = width as usize;
-//     let h = height as usize;
+struct Mip {
+    pixels: Vec<f32>,
+    w: usize,
+    h: usize,
+}
 
-//     for _ in 0..iterations {
-//         let prev = pixels.to_vec();
+pub fn dilate(pixels: &mut [f32], width: u32, height: u32, alpha_threshold: f32) {
+    let w = width as usize;
+    let h = height as usize;
 
-//         for y in 0..h {
-//             for x in 0..w {
-//                 let idx = (y * w + x) * 4;
+    let mut mips = vec![Mip {
+        pixels: pixels.to_vec(),
+        w,
+        h,
+    }];
+    while mips.last().unwrap().w > 1 || mips.last().unwrap().h > 1 {
+        let prev = mips.last().unwrap();
+        let nw = (prev.w / 2).max(1);
+        let nh = (prev.h / 2).max(1);
+        let mut next = vec![0.0f32; nw * nh * 4];
 
-//                 if prev[idx + 3] > alpha_threshold {
-//                     continue;
-//                 }
+        for y in 0..nh {
+            for x in 0..nw {
+                let (mut r, mut g, mut b, mut cov) = (0.0, 0.0, 0.0, 0.0);
+                for dy in 0..2 {
+                    for dx in 0..2 {
+                        let sx = (x * 2 + dx).min(prev.w - 1);
+                        let sy = (y * 2 + dy).min(prev.h - 1);
+                        let idx = (sy * prev.w + sx) * 4;
+                        let a = prev.pixels[idx + 3].max(0.0);
+                        r += prev.pixels[idx] * a;
+                        g += prev.pixels[idx + 1] * a;
+                        b += prev.pixels[idx + 2] * a;
+                        cov += a;
+                    }
+                }
+                let idx = (y * nw + x) * 4;
+                if cov > 1e-5 {
+                    next[idx] = r / cov;
+                    next[idx + 1] = g / cov;
+                    next[idx + 2] = b / cov;
+                }
+                next[idx + 3] = cov / 4.0;
+            }
+        }
+        mips.push(Mip {
+            pixels: next,
+            w: nw,
+            h: nh,
+        });
+    }
 
-//                 let mut r = 0.0_f32;
-//                 let mut g = 0.0_f32;
-//                 let mut b = 0.0_f32;
-//                 let mut total_weight = 0.0_f32;
+    for y in 0..h {
+        for x in 0..w {
+            let idx = (y * w + x) * 4;
 
-//                 for dy in -1..=1 {
-//                     for dx in -1..=1 {
-//                         if dx == 0 && dy == 0 {
-//                             continue;
-//                         }
+            if pixels[idx + 3] > alpha_threshold {
+                continue;
+            }
 
-//                         let nx = (x as isize + dx) as usize;
-//                         let ny = (y as isize + dy) as usize;
+            let u = (x as f32 + 0.5) / w as f32;
+            let v = (y as f32 + 0.5) / h as f32;
 
-//                         if nx >= w || ny >= h {
-//                             continue;
-//                         }
+            for level in 1..mips.len() {
+                let mip = &mips[level];
 
-//                         let nidx = (ny * w + nx) * 4;
+                let fx = u * mip.w as f32 - 0.5;
+                let fy = v * mip.h as f32 - 0.5;
 
-//                         let neighbor_has_data = prev[nidx + 3] > alpha_threshold
-//                             || (prev[nidx] > 0.0 || prev[nidx + 1] > 0.0 || prev[nidx + 2] > 0.0);
+                let cx = fx.round() as isize;
+                let cy = fy.round() as isize;
 
-//                         if neighbor_has_data {
-//                             let distance_weight = if dx != 0 && dy != 0 {
-//                                 0.7071_f32
-//                             } else {
-//                                 1.0_f32
-//                             };
+                let mut rgba = [0.0f32; 4];
+                let mut count = 0;
 
-//                             let reliability_weight = if prev[nidx + 3] > alpha_threshold {
-//                                 1.0
-//                             } else {
-//                                 0.5
-//                             };
+                for oy in -1..=1 {
+                    for ox in -1..=1 {
+                        let sx = cx + ox;
+                        let sy = cy + oy;
 
-//                             let final_weight = distance_weight * reliability_weight;
+                        if sx < 0 || sy < 0 || sx >= mip.w as isize || sy >= mip.h as isize {
+                            continue;
+                        }
 
-//                             r += prev[nidx] * final_weight;
-//                             g += prev[nidx + 1] * final_weight;
-//                             b += prev[nidx + 2] * final_weight;
-//                             total_weight += final_weight;
-//                         }
-//                     }
-//                 }
+                        let i = ((sy as usize * mip.w + sx as usize) * 4) as usize;
 
-//                 if total_weight > 0.0 {
-//                     let inv = 1.0 / total_weight;
-//                     pixels[idx] = r * inv;
-//                     pixels[idx + 1] = g * inv;
-//                     pixels[idx + 2] = b * inv;
-//                 }
-//             }
-//         }
-//     }
-// }
+                        if mip.pixels[i + 3] > 0.5 {
+                            rgba[0] += mip.pixels[i];
+                            rgba[1] += mip.pixels[i + 1];
+                            rgba[2] += mip.pixels[i + 2];
+                            rgba[3] += mip.pixels[i + 3];
+                            count += 1;
+                        }
+                    }
+                }
+
+                if count > 0 {
+                    pixels[idx] = rgba[0] / count as f32;
+                    pixels[idx + 1] = rgba[1] / count as f32;
+                    pixels[idx + 2] = rgba[2] / count as f32;
+                    pixels[idx + 3] = rgba[3] / count as f32;
+                    break;
+                }
+            }
+        }
+    }
+}
 
 pub fn fix_seams(
     pixels: &mut [f32],

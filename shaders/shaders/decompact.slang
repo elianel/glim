@@ -136,8 +136,8 @@ float4 DilateLightmap(int2 coords, uint compactedOffset)
 
     if (!active)
     {
-        float4 value = Push.lightmapType == 2 ? 0.5 : 0.0;
-        DecompactTarget[linearIndex] = value;
+        // float4 value = Push.lightmapType == 2 ? 0.5 : 0.0;
+        DecompactTarget[linearIndex] = 0.0;
         return;
     }
 
@@ -162,12 +162,12 @@ float4 DilateLightmap(int2 coords, uint compactedOffset)
 
         float3 normalizedDirection = normalize(directional / luminance);
 
+        float4 value = float4(normalizedDirection, 1.0);
         if (luminance == 0)
         {
-            normalizedDirection = 0.0;
+            value = 0.0;
         }
-
-        DecompactTarget[linearIndex] = float4(normalizedDirection, 1.0);
+        DecompactTarget[linearIndex] = value;
     }
     else if (Push.lightmapType == 2)
     {
@@ -180,6 +180,8 @@ float4 DilateLightmap(int2 coords, uint compactedOffset)
         float NoL = saturate(dot(normalizedDirection, normalWS));
 
         normalizedDirection.z = -normalizedDirection.z; // unity convention
-        DecompactTarget[linearIndex] = mad(float4(normalizedDirection, NoL), 0.5, 0.5);
+
+        float4 encoded = mad(float4(normalizedDirection, NoL), 0.5, 0.5);
+        DecompactTarget[linearIndex] = encoded;
     }
 }

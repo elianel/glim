@@ -114,15 +114,15 @@ namespace glim
 
                     var groupAsset = _context.groups[(int)data.group_index].groupAsset;
 
-                    var diffuseTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, false, true)
+                    var lightmapTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, false, true)
                     {
                         wrapMode = TextureWrapMode.Clamp
                     };
-                    diffuseTex.SetPixels(result.pixelsCopy);
+                    lightmapTex.SetPixels(result.pixelsCopy);
                     var fileName = directional ? $"Lightmap-{data.group_index}_comp_dir" : $"Lightmap-{data.group_index}_comp_light";
-                    diffuseTex.name = fileName;
+                    lightmapTex.name = fileName;
 
-                    var assets = new UnityEngine.Object[] { diffuseTex };
+                    var assets = new UnityEngine.Object[] { lightmapTex };
                     string path;
 
                     if (directional)
@@ -135,7 +135,7 @@ namespace glim
                             File.WriteAllText(metaPath, yaml);
                         }
                         path = Path.Combine(outputFolder, $"{fileName}.tga");
-                        var bytes = diffuseTex.EncodeToTGA();
+                        var bytes = lightmapTex.EncodeToTGA();
                         File.WriteAllBytes(path, bytes);
                     }
                     else
@@ -150,7 +150,7 @@ namespace glim
                                 File.WriteAllText(metaPath, yaml);
                             }
                             path = Path.Combine(outputFolder, $"{fileName}.exr");
-                            var bytes = diffuseTex.EncodeToEXR(groupAsset.exrFlags);
+                            var bytes = lightmapTex.EncodeToEXR(groupAsset.exrFlags);
                             File.WriteAllBytes(path, bytes);
                         }
                         else // asset
