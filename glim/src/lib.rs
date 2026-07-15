@@ -17,6 +17,9 @@ use crate::sh::SHProbeL2;
 use crate::shaders::bake_direct::{
     BakeDirectPushConstants, load_bake_direct_shader, update_bake_direct_shader,
 };
+use crate::shaders::bake_indirect::{
+    BakeIndirectPushConstants, load_bake_indirect_shader, update_bake_indirect_shader,
+};
 use crate::shaders::compact_visibility::{
     load_shader_compact_visibility, update_shader_compact_visibility,
 };
@@ -1789,11 +1792,18 @@ fn render_lightmaps3(app: &mut Glim) {
         adjust_sample_shader.destroy(&app.vk);
     }
 
-    let lightmap_channels = match app.config.lightmap_mode {
+    let mut lightmap_channels = match app.config.lightmap_mode {
         LightmapMode::NonDirectional => 3,
         LightmapMode::Directional => 6,
     };
 
+    // todo this could definitely be moved into a separate buffer
+    // so it can be freed before the last big texture is allocated for decompaction
+    if app.config.bounce_count > 0 {
+        lightmap_channels += 6;
+    }
+
+    // todo initialize
     let mut compacted_lightmap = Buffer::empty(
         &app.vk,
         "Diffuse Buffer".to_owned(),
@@ -1899,6 +1909,68 @@ fn render_lightmaps3(app: &mut Glim) {
     };
 
     // todo bake bounces
+
+    if app.config.bounce_count > 0 {
+        let mut indirect_shader = load_bake_indirect_shader(&app.vk, &app.constants);
+
+        let mut push = BakeIndirectPushConstants {
+            compacted_count: compacted_pixels_count,
+            sample_index: 0,
+            max_samples: app.config.indirect_samples,
+            bounce_index: 0,
+        };
+
+        update_bake_indirect_shader(
+            &app.vk,
+            &indirect_shader,
+            app.tlas.acceleration_structure(),
+            compacted_visibility.buffer,
+            &albedos,
+            app.gpu_mesh.index_buffer.buffer,
+            app.gpu_mesh.vertex_buffer.buffer,
+            compacted_lightmap.buffer,
+            compaction_buffer.buffer,
+            group_info_buffer.buffer,
+        );
+
+        for bounce_index in 0..app.config.bounce_count {
+            push.bounce_index = bounce_index;
+            for sample_index in 0..app.config.indirect_samples {
+                push.sample_index = sample_index;
+                (log)(LogMessage::progress(&message, progress * progress_scale));
+                progress += 1.0;
+
+                let vk = &app.vk.device;
+                let shader = &indirect_shader;
+                let push_bytes = as_bytes(&push);
+
+                let cmd = app.vk.begin_single_use_cmd();
+                unsafe {
+                    vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+                    vk.cmd_bind_descriptor_sets(
+                        cmd,
+                        vk::PipelineBindPoint::COMPUTE,
+                        shader.pipeline_layout,
+                        0,
+                        &[shader.descriptor_set],
+                        &[],
+                    );
+                    vk.cmd_push_constants(
+                        cmd,
+                        shader.pipeline_layout,
+                        vk::ShaderStageFlags::COMPUTE,
+                        0,
+                        &push_bytes,
+                    );
+
+                    vk.cmd_dispatch(cmd, groups_x, 1, 1);
+                };
+                app.vk.end_single_use_cmd(cmd);
+            }
+        }
+
+        indirect_shader.destroy(&app.vk);
+    }
 
     let mut decompact_shader = load_shader_decompact(&app.vk, &app.constants);
 

@@ -50,8 +50,8 @@ fn main() {
 
     shaders.push(Shader {
         ty: ShaderType::Compute,
-        src: "bake_bounce.slang".into(),
-        dst: "bake_bounce.spv".into(),
+        src: "bake_indirect.slang".into(),
+        dst: "bake_indirect.spv".into(),
     });
 
     shaders.push(Shader {

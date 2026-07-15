@@ -145,19 +145,6 @@ pub struct BakeSHPushConstants {
     pub probes_count: u32,
 }
 
-#[repr(C)]
-pub struct BakeBouncePushConstants {
-    pub width: u32,
-    pub height: u32,
-    pub sample_index: u32,
-    pub max_samples: u32,
-
-    pub bounce_index: u32,
-    pub pad0: u32,
-    pub pad1: u32,
-    pub pad2: u32,
-}
-
 pub fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 7] {
     let size = std::mem::size_of::<u32>();
 
@@ -421,40 +408,6 @@ pub fn load_adjust_samples_shader(
     ComputeShader::new(
         vk,
         get_adjust_samples_shader(),
-        &bindings,
-        &push_constant_ranges,
-        &specialization_info,
-    )
-}
-
-pub fn load_bake_bounce_shader(
-    vk: &VulkanContext,
-    constants: &SpecializationConstants,
-) -> ComputeShader {
-    let mut bindings = Vec::new();
-
-    bind_tlas(&mut bindings);
-    bind_visibility(&mut bindings);
-    bind_albedos(&mut bindings, constants.lightmap_group_count);
-    bind_lightmap_diffuse(&mut bindings);
-    bind_indices(&mut bindings);
-    bind_vertices(&mut bindings);
-
-    let map_entries = create_specialization_map_entries();
-    let data_bytes = as_bytes(constants);
-    let specialization_info = vk::SpecializationInfo::default()
-        .map_entries(&map_entries)
-        .data(data_bytes);
-
-    let push_constant_ranges = [vk::PushConstantRange {
-        stage_flags: vk::ShaderStageFlags::COMPUTE,
-        offset: 0,
-        size: std::mem::size_of::<BakeBouncePushConstants>() as u32,
-    }];
-
-    ComputeShader::new(
-        vk,
-        get_bake_bounce_shader(),
         &bindings,
         &push_constant_ranges,
         &specialization_info,
@@ -916,128 +869,6 @@ pub fn update_adjust_samples_shader(
         ..Default::default()
     };
     write = write.image_info(&infos);
-    descriptor_writes.push(write);
-
-    unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
-}
-
-pub fn update_bake_bounce_shader(
-    vk: &VulkanContext,
-    shader: &ComputeShader,
-    tlas: vk::AccelerationStructureKHR,
-    target_visibility: vk::ImageView,
-    albedos: &[vk::ImageView],
-    target_diffuse: vk::ImageView,
-    indices: vk::Buffer,
-    vertices: vk::Buffer,
-    dominant_direction: vk::Buffer,
-) {
-    let mut descriptor_writes = Vec::new();
-
-    // TopLevelAS
-    let tlas = [tlas];
-    let mut info =
-        vk::WriteDescriptorSetAccelerationStructureKHR::default().acceleration_structures(&tlas);
-    let write = vk::WriteDescriptorSet::default()
-        .push_next(&mut info)
-        .dst_set(shader.descriptor_set)
-        .dst_binding(0)
-        .descriptor_type(vk::DescriptorType::ACCELERATION_STRUCTURE_KHR)
-        .descriptor_count(1);
-    descriptor_writes.push(write);
-
-    // VisibilityBuffer
-    let info = [vk::DescriptorImageInfo {
-        image_view: target_visibility,
-        image_layout: vk::ImageLayout::GENERAL,
-        ..Default::default()
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 2,
-        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
-        ..Default::default()
-    };
-    write = write.image_info(&info);
-    descriptor_writes.push(write);
-
-    // Albedo
-    let infos: Vec<vk::DescriptorImageInfo> = albedos
-        .iter()
-        .map(|tex| vk::DescriptorImageInfo {
-            image_view: *tex,
-            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            ..Default::default()
-        })
-        .collect();
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 3,
-        dst_array_element: 0,
-        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-        ..Default::default()
-    };
-    write = write.image_info(&infos);
-    descriptor_writes.push(write);
-
-    // LightmapDiffuse
-    let info = [vk::DescriptorImageInfo {
-        image_view: target_diffuse,
-        image_layout: vk::ImageLayout::GENERAL,
-        ..Default::default()
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 4,
-        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
-        ..Default::default()
-    };
-    write = write.image_info(&info);
-    descriptor_writes.push(write);
-
-    // Indices
-    let info = [vk::DescriptorBufferInfo {
-        buffer: indices,
-        offset: 0,
-        range: vk::WHOLE_SIZE,
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 8,
-        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
-        ..Default::default()
-    };
-    write = write.buffer_info(&info);
-    descriptor_writes.push(write);
-
-    // Vertices
-    let info = [vk::DescriptorBufferInfo {
-        buffer: vertices,
-        offset: 0,
-        range: vk::WHOLE_SIZE,
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 9,
-        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
-        ..Default::default()
-    };
-    write = write.buffer_info(&info);
-    descriptor_writes.push(write);
-
-    // DominantDirection
-    let info = [vk::DescriptorBufferInfo {
-        buffer: dominant_direction,
-        offset: 0,
-        range: vk::WHOLE_SIZE,
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 14,
-        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
-        ..Default::default()
-    };
-    write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
