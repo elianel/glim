@@ -36,8 +36,8 @@ namespace glim
         public uint Height => (uint)resolution;
 
         public UVPackingType packingType = UVPackingType.ScaleOffset;
-        [Range(5, 25)] public uint packingIterations = 5;
         public bool bruteForce = false;
+        [Range(5, 25)] public uint packingIterations = 5;
 
         // public bool dilate = true;
         [NonSerialized] public bool dilate = false; // disabled for now
