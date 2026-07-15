@@ -1345,7 +1345,7 @@ fn render_lightmaps3(app: &mut Glim) {
             offset: expanded_group_offset,
             compacted_count: 0,
             lightmap_type: 0,
-            pad0: 0,
+            group_index: group_index as u32,
             pad1: 0,
             pad2: 0,
         };
@@ -1602,7 +1602,7 @@ fn render_lightmaps3(app: &mut Glim) {
             offset: expanded_groups_start[group_index] as u32,
             compacted_count: compacted_pixels_count,
             lightmap_type: 0,
-            pad0: 0,
+            group_index: group_index as u32,
             pad1: 0,
             pad2: 0,
         };
@@ -1884,6 +1884,7 @@ fn render_lightmaps3(app: &mut Glim) {
         staging_buffer_lightmap.buffer,
         compacted_lightmap.buffer,
         compacted_visibility.buffer,
+        group_info_buffer.buffer,
     );
 
     let oidn = Oidn::load();
@@ -1913,7 +1914,7 @@ fn render_lightmaps3(app: &mut Glim) {
             offset: expanded_groups_start[group_index] as u32,
             compacted_count: compacted_pixels_count,
             lightmap_type: lightmap_type,
-            pad0: 0,
+            group_index: group_index as u32,
             pad1: 0,
             pad2: 0,
         };

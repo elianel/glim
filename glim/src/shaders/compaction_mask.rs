@@ -11,7 +11,7 @@ pub struct CompactionPushConstants {
     pub compacted_count: u32,
 
     pub lightmap_type: u32,
-    pub pad0: u32,
+    pub group_index: u32,
     pub pad1: u32,
     pub pad2: u32,
 }

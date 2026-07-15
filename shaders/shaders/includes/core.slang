@@ -317,11 +317,20 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
 }
 
 // uv already multiplied with resolution
-uint GetCompactedIndex(float2 uv, uint lightmapGroup)
+uint GetCompactedIndex(float2 uv, uint lightmapGroup, bool flipY = true)
 {
     uint2 coords = uint2(floor(uv + 0.5));
     LightmapInfo info = LightmapGroups[lightmapGroup];
-    coords.y = info.resolution.y - 1 - coords.y;
+
+    if (coords.x >= info.resolution.x || coords.y >= info.resolution.y)
+    {
+        return uint::maxValue;
+    }
+
+    if (flipY)
+    {
+        coords.y = info.resolution.y - 1 - coords.y;
+    }
 
     uint index = InterleaveWithZero(coords.x) | (InterleaveWithZero(coords.y) << 1);
 

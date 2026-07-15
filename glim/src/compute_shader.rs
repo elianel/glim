@@ -655,7 +655,7 @@ pub fn update_bake_light_probes_shader(
     write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
-    // CompactionBuffer
+    // LightmapInfo
     let info = [vk::DescriptorBufferInfo {
         buffer: lightmap_info,
         offset: 0,

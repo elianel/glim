@@ -7,11 +7,11 @@ PushConstants Push;
 struct PushConstants
 {
     uint2 resolution;
-    uint offset;
+    uint unused;
     uint compactedCount;
 
     uint lightmapType;
-    uint pad0;
+    uint groupIndex;
     uint pad1;
     uint pad2;
 };
@@ -25,26 +25,15 @@ struct PushConstants
         return;
     }
 
-    uint index = InterleaveWithZero(coords.x) |
-                 (InterleaveWithZero(coords.y) << 1);
-
-    uint word = index >> 5;
-    uint bit = index & 31;
-
-    uint2 entry = CompactionBuffer[Push.offset + word];
-
     uint linearIndex = coords.y * Push.resolution.x + coords.x;
+    uint compactIndex = GetCompactedIndex(float2(coords), Push.groupIndex, false);
+    bool active = compactIndex != uint::maxValue;
 
-    bool visible = (entry.x & (1u << bit)) == 0;
-
-    if (visible)
+    if (!active)
     {
         DecompactTarget[linearIndex] = 0.0;
         return;
     }
-
-    uint rank = countbits(entry.x & ((1u << bit) - 1));
-    uint compactIndex = entry.y + rank;
 
     float3 diffuse = float3(
         CompactedLightmap[compactIndex * 3 + 0],
