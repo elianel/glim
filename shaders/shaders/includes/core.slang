@@ -478,8 +478,9 @@ float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 
 
         if (light.type == LightType::Area)
         {
-            falloff = saturate(dot(-L, light.direction)) * ((light.AreaSize.x * light.AreaSize.y) * 0.5) / distanceSquare;
-            // falloff *= saturate(dot(-L, light.direction));
+            float area = light.AreaSize.x * light.AreaSize.y;
+            float cosLight = saturate(dot(-L, light.direction));
+            falloff = (cosLight * area) / (float ::getPi() * distanceSquare);
         }
 
         shadowRay.tMax = sqrt(distanceSquare);
@@ -553,8 +554,9 @@ float3 ShadeLightDirectSH(Light light, float3 positionWS, float2 xi, float3 thro
 
         if (light.type == LightType::Area)
         {
-            falloff = saturate(dot(-L, light.direction)) * ((light.AreaSize.x * light.AreaSize.y) * 0.5) / distanceSquare;
-            // falloff *= saturate(dot(-L, light.direction));
+            float area = light.AreaSize.x * light.AreaSize.y;
+            float cosLight = saturate(dot(-L, light.direction));
+            falloff = (cosLight * area) / (float ::getPi() * distanceSquare);
         }
 
         shadowRay.tMax = sqrt(distanceSquare);
