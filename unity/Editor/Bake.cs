@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -11,6 +12,17 @@ using UnityEngine.Rendering;
 
 namespace glim
 {
+    [Serializable]
+    public class BakeReport
+    {
+        public double bakeTime;
+        public int lightmapCount;
+        public long lightmapBytes;
+        public long lightmapMemoryBytes;
+        public long lightingDataBytes;
+        public int probeCount;
+    }
+
     public class Bake
     {
         class ReadbackResult
@@ -75,6 +87,53 @@ namespace glim
         }
 
         static double _bakeStartTime = 0.0;
+        
+        static readonly MethodInfo StorageMemorySize = typeof(Editor).Assembly
+            .GetType("UnityEditor.TextureUtil")?
+            .GetMethod("GetStorageMemorySizeLong", BindingFlags.Static | BindingFlags.NonPublic);
+
+        static long GetCompressedTextureBytes(Texture2D texture)
+        {
+            if (texture == null || StorageMemorySize == null)
+            {
+                return 0;
+            }
+
+            return (long)StorageMemorySize.Invoke(null, new object[] { texture });
+        }
+
+        static string BakeReportPath(string scenePath)
+        {
+            var dir = Path.GetDirectoryName(scenePath);
+            var sceneName = Path.GetFileNameWithoutExtension(scenePath);
+            return Path.Combine(dir, sceneName, "bakeReport.json");
+        }
+
+        public static BakeReport LoadReport(string scenePath)
+        {
+            if (string.IsNullOrEmpty(scenePath))
+            {
+                return null;
+            }
+
+            var path = BakeReportPath(scenePath);
+            return File.Exists(path) ? JsonUtility.FromJson<BakeReport>(File.ReadAllText(path)) : null;
+        }
+
+        public static int ReportVersion { get; private set; }
+
+        static void SaveReport(string scenePath, BakeReport report)
+        {
+            if (string.IsNullOrEmpty(scenePath))
+            {
+                return;
+            }
+
+            var path = BakeReportPath(scenePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllText(path, JsonUtility.ToJson(report));
+            ReportVersion++;
+        }
 
         const string BakingTitle = "Baking Lightmaps";
         const string DenoisingTitle = "Denoising & Fixing Seams";
@@ -141,6 +200,8 @@ namespace glim
                 }
 
                 bool hasDirectional = false;
+                long lightmapBytes = 0;
+                long lightmapMemoryBytes = 0;
                 foreach (var result in _bakeResults)
                 {
                     var data = result.data;
@@ -197,8 +258,12 @@ namespace glim
 
 
 
+                    lightmapBytes += new FileInfo(path).Length;
+
                     AssetDatabase.ImportAsset(path);
                     var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+
+                    lightmapMemoryBytes += GetCompressedTextureBytes(loadedAsset);
 
                     if (directional)
                     {
@@ -286,6 +351,16 @@ namespace glim
 
                 LightmapSettings.lightmaps = lightmapDatas.ToArray();
                 LightmapSettings.lightmapsMode = hasDirectional ? LightmapsMode.CombinedDirectional : LightmapsMode.NonDirectional;
+
+                SaveReport(scenePath, new BakeReport
+                {
+                    bakeTime = now - _bakeStartTime,
+                    lightmapCount = _bakeResults.Count,
+                    lightmapBytes = lightmapBytes,
+                    lightmapMemoryBytes = lightmapMemoryBytes,
+                    lightingDataBytes = new FileInfo(destPath).Length,
+                    probeCount = _bakeProbesResults.Count,
+                });
 
                 LightmapBakerEditor.BakeAllReflectionProbesSnapshots(_context.scene, _context.reflectionProbesSuperSampling ? 2 : 1, _context.reflectionProbesSpecular);
             }

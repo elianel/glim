@@ -184,6 +184,37 @@ namespace glim
                 };
                 root.Add(progressBar);
 
+                Label report = new()
+                {
+                    style =
+                    {
+                        whiteSpace = WhiteSpace.Normal,
+                        marginTop = 8
+                    }
+                };
+                root.Add(report);
+
+                void RefreshReport()
+                {
+                    var last = Bake.LoadReport(baker.gameObject.scene.path);
+                    report.style.display = last == null ? DisplayStyle.None : DisplayStyle.Flex;
+
+                    if (last == null)
+                    {
+                        return;
+                    }
+
+                    report.text =
+                        $"Last Bake: {last.bakeTime:0.00}s\n" +
+                        $"Lightmaps: {last.lightmapCount} ({EditorUtility.FormatBytes(last.lightmapBytes)} on disk, " +
+                        $"{EditorUtility.FormatBytes(last.lightmapMemoryBytes)} compressed)\n" +
+                        $"Lighting Data: {EditorUtility.FormatBytes(last.lightingDataBytes)}\n" +
+                        $"Light Probes: {last.probeCount}";
+                }
+
+                RefreshReport();
+
+                int seenReport = Bake.ReportVersion;
                 progressBar.schedule.Execute(() =>
                 {
                     bool running = Bake.IsBaking;
@@ -194,6 +225,12 @@ namespace glim
                     {
                         progressBar.value = Mathf.Clamp01(Bake.BakeProgress) * 100f;
                         progressBar.title = Bake.BakeMessage;
+                    }
+
+                    if (seenReport != Bake.ReportVersion)
+                    {
+                        seenReport = Bake.ReportVersion;
+                        RefreshReport();
                     }
                 }).Every(100);
             }
