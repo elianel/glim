@@ -17,7 +17,7 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 - Lightmap Groups
 - Directional Lightmaps
 - Small binary size (only ~1MB)
-- Emissive materials, Directional, Spot, and Point Lights
+- Emissive materials, Directional, Spot, Point, and Area Lights
 - Fully standalone, with Unity URP and Built-In pipeline support
 
 ## How to use
@@ -48,7 +48,9 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 ### Baking
 
 - Make sure to setup the denoiser first (otherwise denoising will be skipped)
-- Setup the scene (mark objects as static, generate lightmap uvs, add lights with baked mode or emissive materials etc.)
+- Setup the scene (mark GameObjects as static, generate lightmap uvs etc.)
+- The lightmapper uses regular Unity light components, make sure to set them to baked
+- Scale In Lightmap is also calculated differently from the Unity lightmapper, readjust it on the renderers if needed
 - Menu Item `Glim > Bake`
 - Adjust settings on the created GameObject and press `Generate Lighting`
 
