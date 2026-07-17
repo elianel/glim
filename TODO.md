@@ -4,7 +4,6 @@
 - [ ] Terrain Support
 - [ ] Sky light
 - [ ] Light Cookies
-- [ ] Area lights
 - [ ] Light Probes Deringing
 - [ ] Shadowmask
 - [ ] Subtractive
@@ -25,7 +24,6 @@
 
 ## Optimization
 - [ ] Manually build the LightingData asset
-- [ ] Make seam detection faster
 - [ ] Make emissive triangle detection check only emissive meshes
 - [ ] Submit multiple samples at once instead of waiting for faster ray tracing
 
