@@ -1948,27 +1948,30 @@ fn render_lightmaps3(app: &mut Glim) {
             );
 
             if group.denoise {
-                let start_time = std::time::Instant::now();
-
-                let directional = lightmap_type == 1;
-
                 match &oidn {
                     Some(oidn) => {
+                        let start_time = std::time::Instant::now();
+
+                        let directional = lightmap_type == 1;
+
                         oidn.denoise(
                             pixels,
                             group.width as usize,
                             group.height as usize,
                             directional,
                         );
+
+                        let now = std::time::Instant::now();
+                        let elapsed = now.duration_since(start_time).as_secs_f32();
+
+                        let message = format!("Denoise Complete {}s", elapsed);
+                        (log)(LogMessage::message(&message));
                     }
-                    None => {}
+                    None => {
+                        let message = format!("<color=red>Denoise Failed</color>");
+                        (log)(LogMessage::message(&message));
+                    }
                 }
-
-                let now = std::time::Instant::now();
-                let elapsed = now.duration_since(start_time).as_secs_f32();
-
-                let message = format!("Denoise Complete {}s", elapsed);
-                (log)(LogMessage::message(&message));
             }
 
             // encode directional
