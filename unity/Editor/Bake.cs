@@ -89,9 +89,17 @@ namespace glim
 
         static double _bakeStartTime = 0.0;
         
-        static readonly MethodInfo StorageMemorySize = typeof(Editor).Assembly
-            .GetType("UnityEditor.TextureUtil")?
-            .GetMethod("GetStorageMemorySizeLong", BindingFlags.Static | BindingFlags.NonPublic);
+        static readonly MethodInfo StorageMemorySize = ResolveStorageMemorySize();
+
+        static MethodInfo ResolveStorageMemorySize()
+        {
+            var type = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("UnityEditor.TextureUtil", false))
+                .FirstOrDefault(t => t != null);
+
+            return type?.GetMethod("GetStorageMemorySizeLong",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        }
 
         static long GetCompressedTextureBytes(Texture2D texture)
         {
