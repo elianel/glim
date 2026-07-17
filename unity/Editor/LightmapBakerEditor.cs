@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -204,8 +205,11 @@ namespace glim
                         return;
                     }
 
+                    var finishedAt = DateTime.Parse(last.finishedAt).ToString("HH:mm:ss");
+                    var took = TimeSpan.FromSeconds(last.bakeTime).ToString(@"hh\:mm\:ss");
+
                     report.text =
-                        $"Last Bake: {last.bakeTime:0.00}s\n" +
+                        $"Bake finished at {finishedAt} and took {took}\n" +
                         $"Lightmaps: {last.lightmapCount} ({EditorUtility.FormatBytes(last.lightmapBytes)} on disk, " +
                         $"{EditorUtility.FormatBytes(last.lightmapMemoryBytes)} compressed)\n" +
                         $"Lighting Data: {EditorUtility.FormatBytes(last.lightingDataBytes)}\n" +

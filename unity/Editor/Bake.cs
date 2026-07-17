@@ -16,6 +16,7 @@ namespace glim
     public class BakeReport
     {
         public double bakeTime;
+        public string finishedAt;
         public int lightmapCount;
         public long lightmapBytes;
         public long lightmapMemoryBytes;
@@ -355,6 +356,7 @@ namespace glim
                 SaveReport(scenePath, new BakeReport
                 {
                     bakeTime = now - _bakeStartTime,
+                    finishedAt = DateTime.Now.ToString("o"),
                     lightmapCount = _bakeResults.Count,
                     lightmapBytes = lightmapBytes,
                     lightmapMemoryBytes = lightmapMemoryBytes,
