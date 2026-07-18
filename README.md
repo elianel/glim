@@ -48,11 +48,17 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 ### Baking
 
 - Make sure to setup the denoiser first (otherwise denoising will be skipped)
+- Download the Unity package https://github.com/z3y/glim/releases
 - Setup the scene (mark GameObjects as static, generate lightmap uvs etc.)
 - The lightmapper uses regular Unity light components, make sure to set them to baked
 - Scale In Lightmap is also calculated differently from the Unity lightmapper, readjust it on the renderers if needed
 - Menu Item `Glim > Bake`
 - Adjust settings on the created GameObject and press `Generate Lighting`
+
+### Updating
+
+- Close and reopen Unity to unload all currently loaded assemblies.
+- Import the new Unity package.
 
 #### Lightmap Groups
 
