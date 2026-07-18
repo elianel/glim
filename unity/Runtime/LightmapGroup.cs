@@ -43,9 +43,6 @@ namespace Glim
         [NonSerialized] public bool dilate = false; // disabled for now
         public bool denoise = true;
         public bool fixSeams = true;
-
-        public LightmapSaveFormat format = LightmapSaveFormat.EXR;
-        [NonSerialized] public Texture2D.EXRFlags exrFlags = Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP;
     }
 }
 #endif

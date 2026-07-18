@@ -302,7 +302,7 @@ namespace Glim
                 AssetDatabase.MoveAsset(LightingData.TempLightingDataPath, destPath);
 
 #if VRC_LIGHT_VOLUMES
-                CreateLightVolumeTextures(_context, outputFolder);
+                CreateLightVolumeTextures(_context, _context.outputDir);
 #endif
 
                 // apply new asset

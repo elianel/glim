@@ -1,6 +1,5 @@
 # Todo
 
-- [ ] Sky light
 - [ ] Higher resolution alpha
 - [ ] Terrain Support
 - [ ] Light Cookies
