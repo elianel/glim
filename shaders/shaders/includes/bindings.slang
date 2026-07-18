@@ -64,12 +64,6 @@ RWStructuredBuffer<float4> DecompactTarget;
 [[vk::binding(18, 0)]]
 RWStructuredBuffer<float> CompactedLightmap;
 
-[[vk::binding(19, 0)]] [[vk::image_format("rgba32f")]]
-TextureCube<float4> Skybox;
-
-[[vk::binding(20, 0)]]
-SamplerState SkyboxSampler;
-
 struct LightmapInfo
 {
     uint2 resolution;
@@ -81,6 +75,12 @@ struct LightmapInfo
 {
     LightmapInfo LightmapGroups[128];
 };
+
+[[vk::binding(20, 0)]] [[vk::image_format("rgba32f")]]
+TextureCube<float4> Skybox;
+
+[[vk::binding(21, 0)]]
+SamplerState SkyboxSampler;
 
 [vk::constant_id(0)] const uint USE_CAMERA;
 [vk::constant_id(1)] const uint LIGHT_FALLOFF_TYPE;

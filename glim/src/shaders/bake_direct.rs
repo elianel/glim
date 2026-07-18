@@ -214,7 +214,7 @@ pub fn update_bake_direct_shader(
     }];
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
-        dst_binding: 19,
+        dst_binding: 20,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
         ..Default::default()
     };
@@ -227,7 +227,7 @@ pub fn update_bake_direct_shader(
     }];
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
-        dst_binding: 20,
+        dst_binding: 21,
         descriptor_type: vk::DescriptorType::SAMPLER,
         ..Default::default()
     };

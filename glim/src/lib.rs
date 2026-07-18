@@ -2203,6 +2203,8 @@ fn render_lightmaps3(app: &mut Glim) {
             app.gpu_lights.buffer,
             compaction_buffer.buffer,
             group_info_buffer.buffer,
+            app.skybox.view(),
+            app.skybox.sampler(),
         );
 
         let mut push = BakeSHPushConstants {

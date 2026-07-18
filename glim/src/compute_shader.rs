@@ -437,6 +437,7 @@ pub fn load_bake_light_probes_shader(
     bind_compacted_lightmap(&mut bindings);
     bind_compaction_buffer(&mut bindings);
     bind_lightmap_info(&mut bindings);
+    bind_skybox(&mut bindings);
 
     let push_constant_ranges = [vk::PushConstantRange {
         stage_flags: vk::ShaderStageFlags::COMPUTE,
@@ -472,6 +473,8 @@ pub fn update_bake_light_probes_shader(
     lights: vk::Buffer,
     compaction: vk::Buffer,
     lightmap_info: vk::Buffer,
+    skybox: vk::ImageView,
+    skybox_sampler: vk::Sampler,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -628,6 +631,34 @@ pub fn update_bake_light_probes_shader(
         ..Default::default()
     };
     write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // Skybox
+    let info = [vk::DescriptorImageInfo {
+        image_view: skybox,
+        image_layout: vk::ImageLayout::READ_ONLY_OPTIMAL,
+        ..Default::default()
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 20,
+        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+        ..Default::default()
+    };
+    write = write.image_info(&info);
+    descriptor_writes.push(write);
+    // SkyboxSampler
+    let info = [vk::DescriptorImageInfo {
+        sampler: skybox_sampler,
+        ..Default::default()
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 21,
+        descriptor_type: vk::DescriptorType::SAMPLER,
+        ..Default::default()
+    };
+    write = write.image_info(&info);
     descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
@@ -798,7 +829,7 @@ pub fn update_preview_shader(
     }];
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
-        dst_binding: 19,
+        dst_binding: 20,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
         ..Default::default()
     };
@@ -811,7 +842,7 @@ pub fn update_preview_shader(
     }];
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
-        dst_binding: 20,
+        dst_binding: 21,
         descriptor_type: vk::DescriptorType::SAMPLER,
         ..Default::default()
     };

@@ -89,6 +89,10 @@ struct PushConstants
             }
         }
     }
+    else
+    {
+        AccumulateL2(probe, sampleIndex, SampleSkybox(ray.D) * 4 * sampleScale, ray.D);
+    }
 
     SHProbes[probeIndex] = probe;
 }
