@@ -1886,7 +1886,13 @@ fn render_lightmaps3(app: &mut Glim) {
         Some(oidn.unwrap())
     };
 
-    let process_lightmap = |group_index: usize, lightmap_type: u32, post_step: u32, post_total: u32| {
+    let lightmaps_per_group = match app.config.lightmap_mode {
+        LightmapMode::NonDirectional => 1,
+        LightmapMode::Directional => 2,
+    };
+    let post_total = (app.groups.len() * lightmaps_per_group).max(1) as u32;
+
+    let process_lightmap = |group_index: usize, lightmap_type: u32, post_step: u32| {
         let group = &app.groups[group_index].settings;
 
         (log)(LogMessage::progress(
@@ -2018,6 +2024,12 @@ fn render_lightmaps3(app: &mut Glim) {
 
             dilate(pixels, group.width, group.height, 0.0);
 
+            // for baking light probes the denoised lightmap could also be used
+            // just by compacting it back here
+
+            // if there is a lightweight TGA and EXR crate we can totally just write the lightmap here to disk
+            // instead of copying it back to C# and wasting memory
+
             let readback_data = LightmapReadbackData {
                 group_index: group_index as u32,
                 ty: lightmap_type,
@@ -2030,24 +2042,19 @@ fn render_lightmaps3(app: &mut Glim) {
         };
     };
 
-    let lightmaps_per_group = match app.config.lightmap_mode {
-        LightmapMode::NonDirectional => 1,
-        LightmapMode::Directional => 2,
-    };
-    let post_total = (app.groups.len() * lightmaps_per_group).max(1) as u32;
     let mut post_step = 0;
 
     for group_index in 0..app.groups.len() {
         match app.config.lightmap_mode {
             LightmapMode::NonDirectional => {
                 post_step += 1;
-                process_lightmap(group_index, 0, post_step, post_total);
+                process_lightmap(group_index, 0, post_step);
             }
             LightmapMode::Directional => {
                 post_step += 1;
-                process_lightmap(group_index, 0, post_step, post_total);
+                process_lightmap(group_index, 0, post_step);
                 post_step += 1;
-                process_lightmap(group_index, 1, post_step, post_total);
+                process_lightmap(group_index, 1, post_step);
             }
         }
     }

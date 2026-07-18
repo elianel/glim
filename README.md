@@ -25,7 +25,7 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 ## Notes
 
 - Currently requires a GPU with the `VK_KHR_ray_query` extension, however it will support any GPU with a software BVH in the future. Check GPU support here `https://vulkan.gpuinfo.org/listdevices.php`, most modern GPUs should work.
-- While the lightmapper is fully working, it is still in early stages, theres room for improvement and it might lack some features
+- While the lightmapper is fully working, it is still in early stages, theres room for improvement and it might lack some features (Check the [TODO](./TODO.md) list)
 - If you'd like to see it further improved, consider supporting on [Patreon](https://patreon.com/z3y)
 
 ### Denoiser Setup

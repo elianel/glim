@@ -16,6 +16,11 @@ struct PushConstants
     uint pad2;
 };
 
+// only one pixel dilation in order to make the denoiser not sharpen the edges
+// otherwise the seam fixer is not able to work properly
+// ideally there should be no change to the lightmap before denoising
+// because the denoiser doesnt detect proper noise levels
+// 1px can still very slightly make the denoising worse but its worth it for no seams
 static const int DILATE_RADIUS = 1;
 
 void DilateLightmap(int2 coords, uint compactedOffset, inout float4 original)
