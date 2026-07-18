@@ -26,6 +26,7 @@ pub fn load_bake_direct_shader(
     bind_emissive_triangles(&mut bindings);
     bind_compacted_visibility_buffer(&mut bindings);
     bind_compacted_lightmap(&mut bindings);
+    bind_skybox(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
     let data_bytes = as_bytes(constants);
@@ -60,6 +61,8 @@ pub fn update_bake_direct_shader(
     emissive_triangles: vk::Buffer,
     compacted_visibility: vk::Buffer,
     compacted_lightmap: vk::Buffer,
+    skybox: vk::ImageView,
+    skybox_sampler: vk::Sampler,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -201,6 +204,34 @@ pub fn update_bake_direct_shader(
         ..Default::default()
     };
     write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // Skybox
+    let info = [vk::DescriptorImageInfo {
+        image_view: skybox,
+        image_layout: vk::ImageLayout::READ_ONLY_OPTIMAL,
+        ..Default::default()
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 19,
+        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+        ..Default::default()
+    };
+    write = write.image_info(&info);
+    descriptor_writes.push(write);
+    // SkyboxSampler
+    let info = [vk::DescriptorImageInfo {
+        sampler: skybox_sampler,
+        ..Default::default()
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 20,
+        descriptor_type: vk::DescriptorType::SAMPLER,
+        ..Default::default()
+    };
+    write = write.image_info(&info);
     descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };

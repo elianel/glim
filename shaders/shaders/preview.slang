@@ -16,11 +16,6 @@ struct PushConstants
     uint bounceCount;
 };
 
-float3 SampleSkybox(float3 dir)
-{
-    return Skybox.SampleLevel(SkyboxSampler, dir, 0.0).rgb;
-}
-
 [shader("compute")]
     [numthreads(8, 8, 1)] void
     main(uint3 threadID : SV_DispatchThreadID)

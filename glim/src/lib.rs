@@ -270,6 +270,7 @@ fn initialize_render(app: &mut Glim) {
         multiple_importance_sampling: config.mis as u32,
         lightmap_group_count: app.groups.len() as u32,
         lightmap_mode: config.lightmap_mode as u32,
+        coordinate_system: app.config.coordinate_system as u32,
     };
 
     app.preview_shader = load_preview_shader(&app.vk, &app.constants);
@@ -1104,6 +1105,7 @@ impl Glim {
             multiple_importance_sampling: 0,
             lightmap_group_count: 0,
             lightmap_mode: 0,
+            coordinate_system: config.coordinate_system as u32,
         };
 
         let skybox = Skybox::null();
@@ -1779,6 +1781,8 @@ fn render_lightmaps3(app: &mut Glim) {
         app.emissive_triangles_buffer.buffer,
         compacted_visibility.buffer,
         compacted_lightmap.buffer,
+        app.skybox.view(),
+        app.skybox.sampler(),
     );
 
     let mut bake_direct_push = BakeDirectPushConstants {

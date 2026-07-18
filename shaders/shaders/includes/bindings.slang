@@ -89,6 +89,7 @@ struct LightmapInfo
 [vk::constant_id(4)] const uint MULTIPLE_IMPORTANCE_SAMPLING;
 [vk::constant_id(5)] const uint LIGHTMAP_GROUP_COUNT;
 [vk::constant_id(6)] const uint LIGHTMAP_MODE;
+[vk::constant_id(7)] const uint COORDINATE_SPACE;
 
 enum LightmapMode : uint
 {
@@ -109,4 +110,13 @@ float4 SampleEmission(float2 uv, uint lightmapGroup)
     uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
     Texture2D tex = Emission[index];
     return tex[(uint2)uv];
+}
+
+float3 SampleSkybox(float3 dir)
+{
+    if (COORDINATE_SPACE == 1)
+    {
+        dir.z = -dir.z;
+    }
+    return Skybox.SampleLevel(SkyboxSampler, dir, 0.0).rgb;
 }

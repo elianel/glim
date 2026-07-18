@@ -77,6 +77,10 @@ struct PushConstants
         color.rgb += bounceEmission * color.a;
         dominantDirection.xyz += ray.D * Luminance(current);
     }
+    else
+    {
+        color.rgb += SampleSkybox(ray.D);
+    }
 
     float4 previous = float4(
         CompactedLightmap[index * 3 + 0],
