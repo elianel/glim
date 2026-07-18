@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -29,7 +30,6 @@ namespace glim
             public readonly Vector3 camera_forward;
 
             public readonly LogCallback log_callback;
-            public readonly LightmapReadCallback lightmap_read_callback;
             public readonly ReadbackProbesCallback lightprobes_read_callback;
 
             public readonly uint probe_samples;
@@ -64,7 +64,6 @@ namespace glim
                 this.camera_position = camera_position;
                 this.camera_forward = camera_forward;
                 this.log_callback = Bake.OnLogCalback;
-                this.lightmap_read_callback = Bake.OnReadbackLightmap;
                 this.lightprobes_read_callback = Bake.OnReadbackLightprobes;
                 this.probe_samples = probe_samples;
                 this.probe_bounces = bounce_count;
@@ -123,7 +122,7 @@ namespace glim
         const string DLL_NAME = "glim";
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr app_new(GlimConfig config);
+        public static extern IntPtr app_new(GlimConfig config, FfiString output_dir);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         public static extern void app_run(IntPtr app);
@@ -250,9 +249,6 @@ namespace glim
         public delegate void ReadbackProbesCallback(LightprobesReadbackData data);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void LightmapReadCallback(LightmapReadbackData data);
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void LogCallback(LogData data);
 
         [StructLayout(LayoutKind.Sequential)]
@@ -262,7 +258,6 @@ namespace glim
             public float progress;
             public FfiString message;
         }
-
 
         [StructLayout(LayoutKind.Sequential)]
         public struct FfiString
@@ -279,33 +274,25 @@ namespace glim
 
                 return Marshal.PtrToStringAnsi(raw, (int)length);
             }
-        }
 
-        [StructLayout(LayoutKind.Sequential)]
-        public struct LightmapReadbackData
-        {
-            public uint group_index;
-            public uint ty;
-            public uint width;
-            public uint height;
-            public IntPtr pixels;
-            public uint pixels_count;
-
-            public unsafe Color[] GetPixels()
+            public static FfiString FromString(string value)
             {
-                if (pixels == IntPtr.Zero || pixels_count == 0)
-                    return Array.Empty<Color>();
-
-                int colorCount = (int)pixels_count / 4;
-                Color[] managedArray = new Color[colorCount];
-
-                fixed (Color* destPtr = managedArray)
+                if (string.IsNullOrEmpty(value))
                 {
-                    long byteCount = pixels_count * sizeof(float);
-                    Buffer.MemoryCopy((void*)pixels, destPtr, byteCount, byteCount);
+                    return new FfiString
+                    {
+                        raw = IntPtr.Zero,
+                        length = 0
+                    };
                 }
 
-                return managedArray;
+                IntPtr ptr = Marshal.StringToCoTaskMemUTF8(value);
+
+                return new FfiString
+                {
+                    raw = ptr,
+                    length = (uint)Encoding.UTF8.GetByteCount(value)
+                };
             }
         }
     }

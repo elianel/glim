@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using PlasticPipe.PlasticProtocol.Messages;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditorInternal;
@@ -26,39 +27,19 @@ namespace glim
 
     public class Bake
     {
-        class ReadbackResult
-        {
-            public Bindings.LightmapReadbackData data;
-            public Color[] pixelsCopy;
-        }
-
-        static List<ReadbackResult> _bakeResults = new();
         static List<Bindings.SHProbe> _bakeProbesResults = new();
         static volatile bool _isComplete = false;
         static volatile bool _running = false;
         static int _progressID = -1;
         static BakeContext _context = null;
-        
+
         static volatile float _progress = 0f;
         static volatile string _progressMessage = "";
         static volatile bool _isPreview = false;
-        
+
         public static bool IsBaking => _running && !_isPreview;
         public static float BakeProgress => _progress;
         public static string BakeMessage => _progressMessage;
-
-        [AOT.MonoPInvokeCallback(typeof(Bindings.LightmapReadCallback))]
-        public static void OnReadbackLightmap(Bindings.LightmapReadbackData data)
-        {
-            Debug.Log($"Received Group {data.group_index}: {data.width}x{data.height}");
-            var pixels = data.GetPixels();
-
-            _bakeResults.Add(new ReadbackResult()
-            {
-                data = data,
-                pixelsCopy = pixels,
-            });
-        }
 
         [AOT.MonoPInvokeCallback(typeof(Bindings.ReadbackProbesCallback))]
         public static void OnReadbackLightprobes(Bindings.LightprobesReadbackData data)
@@ -88,7 +69,7 @@ namespace glim
         }
 
         static double _bakeStartTime = 0.0;
-        
+
         static readonly MethodInfo StorageMemorySize = ResolveStorageMemorySize();
 
         static MethodInfo ResolveStorageMemorySize()
@@ -177,7 +158,7 @@ namespace glim
                 return;
             }
 
-            if (_bakeResults.Count == 0)
+            if (_context.isPreview)
             {
                 ResetBake();
                 return;
@@ -201,86 +182,65 @@ namespace glim
 
                 var scenePath = _context.scene.path;
                 string sceneName = _context.scene.name;
-                string outputFolder = Path.Combine(Path.GetDirectoryName(scenePath), sceneName);
 
-                if (!AssetDatabase.IsValidFolder(outputFolder))
-                {
-                    AssetDatabase.CreateFolder(Path.GetDirectoryName(scenePath), sceneName);
-                }
-
-                bool hasDirectional = false;
                 long lightmapBytes = 0;
                 long lightmapMemoryBytes = 0;
-                foreach (var result in _bakeResults)
+
+                // hard coded paths for now in rust
+                for (int groupIndex = 0; groupIndex < _context.groups.Count; groupIndex++)
                 {
-                    var data = result.data;
-                    bool directional = data.ty == 1;
-                    hasDirectional |= directional;
+                    BakeContextGroup group = _context.groups[groupIndex];
 
-                    var groupAsset = _context.groups[(int)data.group_index].groupAsset;
+                    var diffuseName = $"Lightmap-{groupIndex}_Diffuse.exr";
+                    var directionalName = $"Lightmap-{groupIndex}_Directional.exr";
 
-                    var lightmapTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, false, true)
                     {
-                        wrapMode = TextureWrapMode.Clamp
-                    };
-                    lightmapTex.SetPixels(result.pixelsCopy);
-                    var fileName = directional ? $"Lightmap-{data.group_index}_comp_dir" : $"Lightmap-{data.group_index}_comp_light";
-                    lightmapTex.name = fileName;
+                        string metaPath = Path.Combine(_context.outputDir, $"{diffuseName}.meta");
+                        if (!File.Exists(metaPath))
+                        {
+                            var guid = GUID.Generate().ToString();
+                            var yaml = CreateTextureImporterMeta(guid, false);
+                            File.WriteAllText(metaPath, yaml);
+                        }
+                    }
 
-                    var assets = new UnityEngine.Object[] { lightmapTex };
-                    string path;
-
-                    if (directional)
+                    if (_context.lightmapMode == LightmapMode.Directional)
                     {
-                        string metaPath = Path.Combine(outputFolder, $"{fileName}.tga.meta");
+                        string metaPath = Path.Combine(_context.outputDir, $"{directionalName}.meta");
                         if (!File.Exists(metaPath))
                         {
                             var guid = GUID.Generate().ToString();
                             var yaml = CreateTextureImporterMeta(guid, true);
                             File.WriteAllText(metaPath, yaml);
                         }
-                        path = Path.Combine(outputFolder, $"{fileName}.tga");
-                        var bytes = lightmapTex.EncodeToTGA();
-                        File.WriteAllBytes(path, bytes);
                     }
-                    else
+                }
+
+                AssetDatabase.Refresh();
+
+                for (int groupIndex = 0; groupIndex < _context.groups.Count; groupIndex++)
+                {
+                    BakeContextGroup group = _context.groups[groupIndex];
+
+                    var groupAsset = _context.groups[groupIndex].groupAsset;
+                    var diffuseName = $"Lightmap-{groupIndex}_Diffuse.exr";
+                    var directionalName = $"Lightmap-{groupIndex}_Directional.exr";
+
                     {
-                        if (groupAsset.format == LightmapSaveFormat.EXR)
-                        {
-                            string metaPath = Path.Combine(outputFolder, $"{fileName}.exr.meta");
-                            if (!File.Exists(metaPath))
-                            {
-                                var guid = GUID.Generate().ToString();
-                                var yaml = CreateTextureImporterMeta(guid, false);
-                                File.WriteAllText(metaPath, yaml);
-                            }
-                            path = Path.Combine(outputFolder, $"{fileName}.exr");
-                            var bytes = lightmapTex.EncodeToEXR(groupAsset.exrFlags);
-                            File.WriteAllBytes(path, bytes);
-                        }
-                        else // asset
-                        {
-                            path = Path.Combine(outputFolder, $"{fileName}.asset");
-                            InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
-                        }
+                        var path = Path.Combine(_context.outputDir, diffuseName);
+                        var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                        lightmapMemoryBytes += GetCompressedTextureBytes(loadedAsset);
+                        lightmapDatas[groupIndex].lightmapColor = loadedAsset;
+                        lightmapBytes += new FileInfo(path).Length;
                     }
 
-
-
-                    lightmapBytes += new FileInfo(path).Length;
-
-                    AssetDatabase.ImportAsset(path);
-                    var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-
-                    lightmapMemoryBytes += GetCompressedTextureBytes(loadedAsset);
-
-                    if (directional)
+                    if (_context.lightmapMode == LightmapMode.Directional)
                     {
-                        lightmapDatas[(int)result.data.group_index].lightmapDir = loadedAsset;
-                    }
-                    else
-                    {
-                        lightmapDatas[(int)result.data.group_index].lightmapColor = loadedAsset;
+                        var path = Path.Combine(_context.outputDir, directionalName);
+                        var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                        lightmapMemoryBytes += GetCompressedTextureBytes(loadedAsset);
+                        lightmapDatas[groupIndex].lightmapDir = loadedAsset;
+                        lightmapBytes += new FileInfo(path).Length;
                     }
                 }
 
@@ -304,13 +264,11 @@ namespace glim
                     element.FindPropertyRelative("m_ShadowMask").objectReferenceValue = lightmapDatas[i].shadowMask;
                 }
 
-                lda.FindProperty("m_LightmapsMode").intValue = hasDirectional ?
+                lda.FindProperty("m_LightmapsMode").intValue = _context.lightmapMode == LightmapMode.Directional ?
                     (int)LightmapsMode.CombinedDirectional : (int)LightmapsMode.NonDirectional;
 
                 // apply light probes
                 var lightProbesRef = lda.FindProperty("m_LightProbes").objectReferenceValue;
-
-                // faster
                 SphericalHarmonicsL2 sh = new();
                 var obj = lightProbesRef as LightProbes;
                 Debug.Assert(obj != null);
@@ -334,12 +292,11 @@ namespace glim
                     EditorUtility.SetDirty(obj);
                 }
 
-
                 lda.ApplyModifiedPropertiesWithoutUndo();
                 string ldaName = "LightingData";
 
                 // move
-                string destPath = Path.Combine(outputFolder, $"{ldaName}.asset").Replace("\\", "/");
+                string destPath = Path.Combine(_context.outputDir, $"{ldaName}.asset").Replace("\\", "/");
                 if (AssetDatabase.LoadMainAssetAtPath(destPath) != null)
                 {
                     AssetDatabase.DeleteAsset(destPath);
@@ -359,13 +316,13 @@ namespace glim
                 EditorSceneManager.MarkSceneDirty(_context.scene);
 
                 LightmapSettings.lightmaps = lightmapDatas.ToArray();
-                LightmapSettings.lightmapsMode = hasDirectional ? LightmapsMode.CombinedDirectional : LightmapsMode.NonDirectional;
+                LightmapSettings.lightmapsMode = _context.lightmapMode == LightmapMode.Directional ? LightmapsMode.CombinedDirectional : LightmapsMode.NonDirectional;
 
                 SaveReport(scenePath, new BakeReport
                 {
                     bakeTime = now - _bakeStartTime,
                     finishedAt = DateTime.Now.ToString("o"),
-                    lightmapCount = _bakeResults.Count,
+                    lightmapCount = lightmapDatas.Count,
                     lightmapBytes = lightmapBytes,
                     lightmapMemoryBytes = lightmapMemoryBytes,
                     lightingDataBytes = new FileInfo(destPath).Length,
@@ -383,7 +340,6 @@ namespace glim
         static void ResetBake()
         {
             EditorApplication.update -= PollBakeComplete;
-            _bakeResults = new();
             _bakeProbesResults = new();
             _isComplete = false;
             _running = false;
@@ -568,7 +524,8 @@ namespace glim
             {
                 try
                 {
-                    var app = Bindings.app_new(config);
+                    var output_dir = Bindings.FfiString.FromString(ctx.outputDir);
+                    var app = Bindings.app_new(config, output_dir);
 
                     if (app == null)
                     {

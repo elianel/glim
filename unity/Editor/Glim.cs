@@ -84,6 +84,10 @@ namespace glim
         public bool reflectionProbesSuperSampling;
         public bool reflectionProbesSpecular;
 
+        public string outputDir;
+        public LightmapMode lightmapMode;
+        public bool isPreview;
+
         private static int GetDepth(Transform t)
         {
             int depth = 0;
@@ -93,8 +97,10 @@ namespace glim
 
         public BakeContext(LightmapBaker baker, Bindings.GlimConfig config)
         {
+            this.lightmapMode = baker.lightmapMode;
             this.reflectionProbesSuperSampling = baker.reflectionProbesSuperSampling;
             this.reflectionProbesSpecular = baker.reflectionProbesSpecular;
+            this.isPreview = config.is_preview;
 
             SerializedObject lda;
             if (!config.is_preview)
@@ -111,6 +117,12 @@ namespace glim
             scene = SceneManager.GetActiveScene();
 
             var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
+
+            this.outputDir = Path.Combine(Path.GetDirectoryName(scene.path), scene.name);
+            if (!AssetDatabase.IsValidFolder(this.outputDir))
+            {
+                AssetDatabase.CreateFolder(Path.GetDirectoryName(scene.path), scene.name);
+            }
 
             var ftraceLightmaps = rootObjects.FirstOrDefault(x => x.gameObject.name == "!ftraceLightmaps");
             if (ftraceLightmaps != null)

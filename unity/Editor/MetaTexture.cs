@@ -30,7 +30,7 @@ namespace glim
                 height = resolution,
                 useMipMap = false,
                 mipCount = 1,
-                colorFormat = type == AtlasType.Albedo ? RenderTextureFormat.ARGB32 : RenderTextureFormat.ARGBFloat,
+                colorFormat = type == AtlasType.Albedo ? RenderTextureFormat.ARGB32 : RenderTextureFormat.ARGBHalf,
                 sRGB = false,
                 volumeDepth = 1,
                 msaaSamples = 1,

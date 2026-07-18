@@ -10,7 +10,7 @@ pub struct CompactionPushConstants {
     pub offset: u32,
     pub compacted_count: u32,
 
-    pub lightmap_type: u32,
+    pub encode_type: u32,
     pub group_index: u32,
     pub dilate: u32,
     pub pad2: u32,

@@ -1,6 +1,7 @@
 use std::{
     any::Any,
     panic::{AssertUnwindSafe, catch_unwind},
+    path::PathBuf,
     ptr::{null, null_mut},
     slice,
 };
@@ -28,7 +29,6 @@ pub struct GlimConfig {
     pub camera_forward: Vector3,
 
     pub log_callback: LogCallback,
-    pub lightmap_read_callback: LightmapReadCallback,
     pub lightprobes_read_callback: LightprobesReadCallback,
 
     pub probe_samples: u32,
@@ -58,6 +58,7 @@ pub enum LogMessageType {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct FfiString {
     pub raw: *const u8,
     pub length: u32,
@@ -85,6 +86,17 @@ impl FfiString {
         unsafe {
             let slice = std::slice::from_raw_parts(self.raw, self.length as usize);
             std::str::from_utf8_unchecked(slice)
+        }
+    }
+
+    pub fn to_string(self) -> String {
+        if self.raw.is_null() {
+            return String::new();
+        }
+
+        unsafe {
+            let slice = std::slice::from_raw_parts(self.raw, self.length as usize);
+            String::from_utf8_lossy(slice).into_owned()
         }
     }
 }
@@ -123,18 +135,7 @@ impl LogMessage {
 }
 
 type LogCallback = extern "C" fn(data: LogMessage);
-type LightmapReadCallback = extern "C" fn(data: LightmapReadbackData);
 type LightprobesReadCallback = extern "C" fn(data: LightprobesReadbackData);
-
-#[repr(C)]
-pub struct LightmapReadbackData {
-    pub group_index: u32,
-    pub ty: u32,
-    pub width: u32,
-    pub height: u32,
-    pub pixels: *const f32,
-    pub pixels_count: u32,
-}
 
 #[repr(C)]
 pub struct LightprobesReadbackData {
@@ -187,9 +188,10 @@ fn handle_unwind_error(log_callback: LogCallback, err: Box<dyn Any + Send>) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_new(config: GlimConfig) -> *mut Glim {
+pub extern "C" fn app_new(config: GlimConfig, output_dir: FfiString) -> *mut Glim {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let app = Glim::new(config.clone());
+        let output_dir = PathBuf::from(output_dir.to_string());
+        let app = Glim::new(config.clone(), output_dir);
         Box::into_raw(Box::new(app))
     }));
 

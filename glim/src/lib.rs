@@ -1,5 +1,6 @@
 use ash::vk::{self, Handle};
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::{ptr, time::Duration};
 
 use glfw_sys::{
@@ -100,6 +101,8 @@ pub struct Glim {
     pub render_target: RenderTarget,
 
     pub constants: SpecializationConstants,
+
+    pub output_dir: PathBuf,
 }
 
 impl Drop for Glim {
@@ -994,7 +997,7 @@ impl LightmapGroup {
 }
 
 impl Glim {
-    pub fn new(config: GlimConfig) -> Glim {
+    pub fn new(config: GlimConfig, output_dir: PathBuf) -> Glim {
         let mut vulkan_config = VulkanConfig {
             enable_validation_layers: config.vulkan_validation_layers,
             enable_window: config.is_preview,
@@ -1112,6 +1115,7 @@ impl Glim {
             staging_buffer,
             adjust_samples_shader: ComputeShader::null(),
             constants,
+            output_dir,
         }
     }
 }
@@ -1222,7 +1226,7 @@ fn render_lightmaps3(app: &mut Glim) {
             height: group.height,
             offset: expanded_group_offset,
             compacted_count: 0,
-            lightmap_type: 0,
+            encode_type: 0,
             group_index: group_index as u32,
             dilate: 0,
             pad2: 0,
@@ -1513,7 +1517,7 @@ fn render_lightmaps3(app: &mut Glim) {
             height: group.height,
             offset: expanded_groups_start[group_index] as u32,
             compacted_count: compacted_pixels_count,
-            lightmap_type: 0,
+            encode_type: 0,
             group_index: group_index as u32,
             dilate: 0,
             pad2: 0,
@@ -1892,6 +1896,8 @@ fn render_lightmaps3(app: &mut Glim) {
     };
     let post_total = (app.groups.len() * lightmaps_per_group).max(1) as u32;
 
+    let output_dir = &app.output_dir;
+
     let process_lightmap = |group_index: usize, lightmap_type: u32, post_step: u32| {
         let group = &app.groups[group_index].settings;
 
@@ -1905,7 +1911,7 @@ fn render_lightmaps3(app: &mut Glim) {
             height: group.height,
             offset: expanded_groups_start[group_index] as u32,
             compacted_count: compacted_pixels_count,
-            lightmap_type: lightmap_type,
+            encode_type: lightmap_type,
             group_index: group_index as u32,
             dilate: group.dilate as u32,
             pad2: 0,
@@ -1974,7 +1980,7 @@ fn render_lightmaps3(app: &mut Glim) {
 
             // encode directional
             if lightmap_type == 1 {
-                compaction_push.lightmap_type = 2;
+                compaction_push.encode_type = 2;
                 let decompact_push_bytes = as_bytes(&compaction_push);
 
                 let cmd = app.vk.begin_single_use_cmd();
@@ -2027,18 +2033,44 @@ fn render_lightmaps3(app: &mut Glim) {
             // for baking light probes the denoised lightmap could also be used
             // just by compacting it back here
 
-            // if there is a lightweight TGA and EXR crate we can totally just write the lightmap here to disk
-            // instead of copying it back to C# and wasting memory
+            let w = group.width as usize;
+            let h = group.height as usize;
 
-            let readback_data = LightmapReadbackData {
-                group_index: group_index as u32,
-                ty: lightmap_type,
-                pixels: pixels.as_ptr(),
-                pixels_count: pixels.len() as u32,
-                width: group.width,
-                height: group.height,
-            };
-            (app.config.lightmap_read_callback)(readback_data);
+            if lightmap_type == 0 {
+                use exr::image::write::write_rgb_file;
+                use half::f16;
+
+                let full_path = output_dir.join(format!("Lightmap-{}_Diffuse.exr", group_index));
+
+                write_rgb_file(full_path, w, h, |x, y| {
+                    let flipped_y = h - 1 - y;
+                    let index = x + flipped_y * w;
+                    (
+                        f16::from_f32(pixels[index * 4 + 0]),
+                        f16::from_f32(pixels[index * 4 + 1]),
+                        f16::from_f32(pixels[index * 4 + 2]),
+                    )
+                })
+                .unwrap();
+            } else if lightmap_type == 1 {
+                use exr::image::write::write_rgba_file;
+                use half::f16;
+
+                let full_path =
+                    output_dir.join(format!("Lightmap-{}_Directional.exr", group_index));
+
+                write_rgba_file(full_path, w, h, |x, y| {
+                    let flipped_y = h - 1 - y;
+                    let index = x + flipped_y * w;
+                    (
+                        f16::from_f32(pixels[index * 4 + 0]),
+                        f16::from_f32(pixels[index * 4 + 1]),
+                        f16::from_f32(pixels[index * 4 + 2]),
+                        f16::from_f32(pixels[index * 4 + 3]),
+                    )
+                })
+                .unwrap();
+            }
         };
     };
 

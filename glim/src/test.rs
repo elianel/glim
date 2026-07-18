@@ -44,7 +44,6 @@ mod tests {
             camera_forward: Vector3::FORWARD,
             preview_settings,
             throttle_preview_ms: 2,
-            lightmap_read_callback: test_save_callback,
             lightprobes_read_callback: test_probes_callback,
             probe_samples: 4096,
             probe_bounces: 3,
@@ -86,7 +85,8 @@ mod tests {
             z: 0.2595,
         };
 
-        let app = app_new(config);
+        let output_dir = FfiString::new("../temp");
+        let app = app_new(config, output_dir);
 
         // let mut offset = 0.0;
         // for _ in 0..1 {
@@ -300,6 +300,7 @@ mod tests {
             dilate: true,
             fix_seams: true,
         };
+
         app_add_lightmap_group(
             app,
             settings,
@@ -447,20 +448,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn test_save_callback(data: LightmapReadbackData) {
-        let pixels = unsafe { std::slice::from_raw_parts(data.pixels, data.pixels_count as usize) };
-
-        let file_name = format!(
-            "../temp/diffuse_lightmap{}_{}.exr",
-            data.group_index, data.ty
-        );
-
-        println!("saving lightmap {}", file_name);
-
-        save_exr_f32(&pixels, data.width, data.height, 4, file_name.as_str());
     }
 
     #[unsafe(no_mangle)]
